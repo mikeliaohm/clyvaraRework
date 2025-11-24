@@ -228,6 +228,7 @@ const ParsedContent = styled.div`
   border: 1px solid #e0e0e0;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   
+  
   /* Custom scrollbar */
   &::-webkit-scrollbar {
     width: 8px;
@@ -522,113 +523,46 @@ export default function Dashboard() {
       <ModalOverlay $show={showExpandedView}>
         <ModalContent>
           <ModalTitle>{selectedMaterial?.title || 'Loading...'}</ModalTitle>
-          <p><strong>File Type:</strong> {selectedMaterial?.file_type || 'Unknown'}</p>
-          <p><strong>Status:</strong> {selectedMaterial?.status || 'Unknown'}</p>
-          <p><strong>Uploaded:</strong> {selectedMaterial?.uploaded_at ? new Date(selectedMaterial.uploaded_at).toLocaleDateString() : 'Unknown'}</p>
+         
           
           <h4>Content Preview:</h4>
-          <ParsedContent>
-            {selectedMaterial?.extracted_text && selectedMaterial.extracted_text.length > 0
-              ? (() => {
-                  const text = selectedMaterial.extracted_text;
-                  const previewLength = 1500;
-                  const preview = text.substring(0, previewLength);
-                  const isTruncated = text.length > previewLength;
-                  
-                  // Clean up the text for better readability
-                  const cleanedText = preview
-                    .replace(/\n\s*\n/g, '\n\n') // Remove excessive line breaks
-                    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-                    .trim();
-                  
-                  return (
-                    <div>
-                      <div style={{ 
-                        lineHeight: '1.6', 
-                        fontSize: '14px',
-                        color: '#2c3e50',
-                        textAlign: 'left'
-                      }}>
-                        {cleanedText}
-                        {isTruncated && (
-                          <span style={{ 
-                            color: '#7f8c8d', 
-                            fontStyle: 'italic',
-                            display: 'block',
-                            marginTop: '10px',
-                            padding: '8px',
-                            backgroundColor: '#f8f9fa',
-                            borderRadius: '4px',
-                            border: '1px solid #e9ecef'
-                          }}>
-                            ... (showing first {previewLength.toLocaleString()} of {text.length.toLocaleString()} characters)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()
-              : selectedMaterial?.status === 'processing' 
-                ? <div style={{ 
-                    textAlign: 'center', 
-                    padding: '20px',
-                    color: '#6c757d',
-                    fontStyle: 'italic'
-                  }}>
-                    <div style={{ fontSize: '18px', marginBottom: '10px' }}>⏳</div>
-                    Content is being processed. Please wait...
-                  </div>
-                : selectedMaterial?.status === 'failed'
-                ? <div style={{ 
-                    textAlign: 'center', 
-                    padding: '20px',
-                    color: '#dc3545',
-                    backgroundColor: '#f8d7da',
-                    borderRadius: '6px',
-                    border: '1px solid #f5c6cb'
-                  }}>
-                    <div style={{ fontSize: '18px', marginBottom: '10px' }}>❌</div>
-                    Content processing failed. Please try uploading again.
-                  </div>
-                : selectedMaterial?.status === 'processed'
-                ? <div style={{ 
-                    textAlign: 'center', 
-                    padding: '20px',
-                    color: '#856404',
-                    backgroundColor: '#fff3cd',
-                    borderRadius: '6px',
-                    border: '1px solid #ffeaa7'
-                  }}>
-                    <div style={{ fontSize: '18px', marginBottom: '10px' }}>⚠️</div>
-                    Content processing completed but no text was extracted. This might be a scanned PDF or image-based document.
-                  </div>
-                : <div style={{ 
-                    textAlign: 'center', 
-                    padding: '20px',
-                    color: '#6c757d',
-                    fontStyle: 'italic'
-                  }}>
-                    Content is being processed. This will show the extracted text from your uploaded file.
-                  </div>}
-          </ParsedContent>
-          
-          {selectedMaterial?.extracted_text && selectedMaterial.extracted_text.length > 0 && (
-            <div style={{ 
-              marginTop: '10px', 
-              padding: '8px 12px',
-              backgroundColor: '#e9ecef',
-              borderRadius: '4px',
-              fontSize: '12px',
-              color: '#6c757d',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <span><strong>Text Length:</strong> {selectedMaterial.extracted_text.length.toLocaleString()} characters</span>
-              <span><strong>Words:</strong> {selectedMaterial.extracted_text.split(/\s+/).filter(word => word.length > 0).length.toLocaleString()}</span>
-            </div>
-          )}
-          
+<ParsedContent>
+  {selectedMaterial && (() => {
+    // TEMP: log what we actually have
+    console.log("selectedMaterial in modal:", selectedMaterial);
+
+    // Try to grab ANY reasonable URL field
+    const fileUrl =
+      selectedMaterial.file_url ||
+      selectedMaterial.public_url ||
+      selectedMaterial.url;
+
+    if (fileUrl) {
+      return (
+        <iframe
+          src={fileUrl}
+          title={selectedMaterial.title || "Material preview"}
+          style={{
+            width: "100%",
+            height: "70vh",
+            border: "1px solid #e5e7eb",
+            borderRadius: "8px",
+            background: "#ffffff",
+          }}
+        />
+      );
+    }
+
+    // Fallback if we truly have no URL on this object
+    return (
+      <p style={{ color: "#6b7280", fontStyle: "italic", margin: 0 }}>
+        We don’t have a preview URL for this file yet, but it is still processed
+        for quizzes and the chatbot.
+      </p>
+    );
+  })()}
+</ParsedContent>
+
           <ModalButtons>
             <ActionButton 
               onClick={() => setShowExpandedView(false)}
