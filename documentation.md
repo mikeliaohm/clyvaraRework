@@ -1,5 +1,5 @@
 # 📁 Project Structure Documentation  
-**Last Updated:** 12/5/25  
+**Last Updated:** 12/8/25  
 
 This project consists of a **React + Vite frontend** and a **FastAPI + Python backend**, organized into two main directories. Below is a clean overview of the full structure, runtime behavior, and features.
 
