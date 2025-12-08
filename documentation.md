@@ -80,7 +80,43 @@ Built with **React + Vite**, containing all UI logic, routing, and component str
   Standard layout components ensuring consistent design patterns across pages.
 
 ---
+# Branding & Design Documentation
 
+## Overview
+This document summarizes the early-stage visual identity and product design work for Clyvara. The focus includes color exploration, mascot design, and wireframe iterations for the initial product concept.
+
+## Deliverables
+### 1. Color Palette
+A foundational color system exploring brand personality and tone.  
+- Primary colors  
+- Secondary/supporting colors  
+- Example use cases (buttons, backgrounds, accents)
+
+### 2. Mascot Design
+Early mascot concepts to represent the brand voice and visual identity.  
+- Initial sketches  
+- Style direction  
+- Final mascot and logo
+
+### 3. Wireframe Iterations
+Low- to mid-fidelity wireframes created to establish layout, structure, and early user flow.  
+- Initial layout (Dashboard, log in/sign up page, landing page) 
+- Refinement based on feedback  
+- Updated structure + improved usability
+
+## Figma Source File
+All designs are documented in the Figma file below:  
+👉 https://www.figma.com/design/IQhMApIk2VSPbIWeg7JERp/Design?node-id=0-1&t=qjeOu8ACJfbgBrFr-1
+
+This file includes:
+- Color palette frames  
+- Mascot concepts  
+- Wireframe versions 
+
+## Notes
+These assets reflect exploration and early product direction. They can be expanded into full brand guidelines and high-fidelity UI in future phases.
+
+---
 ## 📦 Miscellaneous
 
 - **`node_modules/`**  
