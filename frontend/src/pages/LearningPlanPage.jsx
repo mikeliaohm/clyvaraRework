@@ -37,10 +37,9 @@ const ModuleGrid = styled.div`
   margin-top: 8px;
 `;
 
-const ModuleCard = styled.button`
+const ModuleCard = styled.div`
   position: relative;
   border: 1px solid #e5e7eb;
-  border-radius: 16px;
   padding: 20px;
   background: #f9fafb;
   cursor: pointer;
@@ -49,21 +48,14 @@ const ModuleCard = styled.button`
   justify-content: space-between;
   min-height: 180px;
   text-align: left;
-  transition: transform 120ms ease, box-shadow 120ms ease,
-    background 120ms ease, border-color 120ms ease;
-
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
-    background: #eef2ff;
-    border-color: #4f46e5;
-  }
-
-  &:focus-visible {
-    outline: 2px solid #4f46e5;
-    outline-offset: 3px;
-  }
 `;
+
+const AccentBar = styled.div`
+  height: 16px;
+  background: #DFF4A6;
+  margin: -20px -20px 12px -20px;
+`;
+
 
 const ModuleTitle = styled.h2`
   margin: 0 0 8px 0;
@@ -81,7 +73,7 @@ const ModuleTag = styled.span`
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 4px 8px;
-  color: #4f46e5;
+  color: #20359A;
   background: #e0e7ff;
   margin-bottom: 8px;
 `;
@@ -104,7 +96,8 @@ const ModuleFooter = styled.div`
 
 const StartText = styled.span`
   font-weight: 500;
-  color: #4f46e5;
+  font-size: 14px;
+  color: #20359A;
 `;
 
 export default function LearningPlanPage() {
@@ -150,13 +143,13 @@ export default function LearningPlanPage() {
             onClick={() => handleOpenModule(m.path)}
           >
             <div>
+              <AccentBar />
               <ModuleTag>{m.tag}</ModuleTag>
               <ModuleTitle>{m.title}</ModuleTitle>
               <ModuleDescription>{m.description}</ModuleDescription>
             </div>
             <ModuleFooter>
-              <StartText>Open module →</StartText>
-              <span>Learning plan</span>
+              <StartText>Resume →</StartText>
             </ModuleFooter>
           </ModuleCard>
         ))}
