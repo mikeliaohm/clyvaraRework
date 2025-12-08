@@ -47,18 +47,20 @@ const LogoText = styled.span`
 const Nav = styled.nav`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  align: center;
+  gap: 24px;
   margin-top: 24px;
 `;
 
-const NavItem = styled.button`
+const NavItem = styled.div`
   all: unset;
+  flex-direction: column;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  font-weight: 600;
+  padding: 30px;
+  justify-content: center;
+  font-family: 'generak sans', sans-serif;
   cursor: pointer;
   background: ${p => (p.$active ? "rgba(255,255,255,.2)" : "transparent")};
   white-space: nowrap;
@@ -73,16 +75,17 @@ const NavItem = styled.button`
 `;
 
 const NavIcon = styled.img`
-  width: 18px;
-  height: 18px;
+  width: 30px;
+  height: 30px;
   object-fit: contain;
-  flex-shrink: 0;
+  display: block;
 `;
 
 const NavText = styled.span`
   opacity: ${p => p.$collapsed ? 0 : 1};
   visibility: ${p => p.$collapsed ? 'hidden' : 'visible'};
   transition: all 0.3s ease;
+  font-size: 20px;
 `;
 
 const ToggleButton = styled.button`
@@ -108,8 +111,8 @@ const ToggleButton = styled.button`
 `;
 
 const ToggleIcon = styled.svg`
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
 `;
 
@@ -117,6 +120,7 @@ const ToggleText = styled.span`
   opacity: ${p => p.$collapsed ? 0 : 1};
   visibility: ${p => p.$collapsed ? 'hidden' : 'visible'};
   transition: all 0.3s ease;
+  font-size: 20px;
 `;
 
 export default function DashboardSidebar({ collapsed, onToggle }) {
