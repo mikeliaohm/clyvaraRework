@@ -27,8 +27,16 @@ from material_cache import (
 
 load_dotenv()
 
+print("=" * 60)
+print("Starting FastAPI application...")
+print("=" * 60)
+
 # Supabase JWT secret for token verification
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
+if SUPABASE_JWT_SECRET:
+    print("✓ SUPABASE_JWT_SECRET found")
+else:
+    print("✗ WARNING: SUPABASE_JWT_SECRET not set")
 
 # System materials user ID - materials with this user_id are accessible to all users
 SYSTEM_USER_ID = "SYSTEM"
@@ -62,8 +70,10 @@ def get_current_user(authorization: str = Header(None)):
 openai_api_key = os.getenv("OPENAI_API_KEY")
 if openai_api_key and openai_api_key != "your_openai_api_key_here":
     client = OpenAI(api_key=openai_api_key)
+    print("✓ OpenAI client initialized")
 else:
     client = None
+    print("✗ WARNING: OpenAI client not initialized (missing OPENAI_API_KEY)")
 
 # AWS S3 Configuration
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
@@ -79,8 +89,10 @@ if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
         aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
         region_name=AWS_REGION
     )
+    print(f"✓ S3 client initialized (Region: {AWS_REGION}, Bucket: {S3_BUCKET_NAME})")
 else:
     s3_client = None
+    print("✗ WARNING: S3 client not initialized (missing AWS credentials)")
         
 app = FastAPI()
 
@@ -95,16 +107,45 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Preload system materials into cache on startup"""
+    print("\n" + "=" * 60)
+    print("Running startup tasks...")
+    print("=" * 60)
+    
+    # Test database connection
     try:
+        print("\n[1/3] Testing database connection...")
+        test_result = test_connection()
+        if test_result:
+            print("✓ Database connection successful")
+        else:
+            print("✗ Database connection failed")
+            return
+    except Exception as e:
+        print(f"✗ Database connection error: {e}")
+        import traceback
+        traceback.print_exc()
+        return
+    
+    # Preload system materials
+    try:
+        print("\n[2/3] Preloading system materials...")
         from database import get_session_local
         db = get_session_local()()
         try:
             preload_system_materials(db, SYSTEM_USER_ID)
-            print("Material cache initialized")
+            print("✓ Material cache initialized")
         finally:
             db.close()
     except Exception as e:
-        print(f"Warning: Could not preload system materials: {e}")
+        print(f"✗ Warning: Could not preload system materials: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    print("\n[3/3] Startup complete!")
+    print("=" * 60)
+    print("Server ready at http://localhost:8000")
+    print("API docs at http://localhost:8000/docs")
+    print("=" * 60 + "\n")
 
 # File processing functions
 def extract_text_from_pdf(file_content: bytes) -> str:
