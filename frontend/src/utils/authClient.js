@@ -60,14 +60,14 @@ class AuthClient {
     }
   }
 
-  async login({ username, password }) {
+  async login({ email, password }) {
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {
@@ -128,7 +128,10 @@ class AuthClient {
   }
 
   getUser() {
-    return this.user;
+    return {
+      data: { user: this.user },
+      error: null,
+    };
   }
 
   getToken() {
@@ -177,8 +180,8 @@ export const auth = {
     return authClient.signup(credentials);
   },
 
-  async signInWithPassword({ username, password }) {
-    return authClient.login({ username, password });
+  async signInWithPassword({ email, password }) {
+    return authClient.login({ email, password });
   },
 
   async signOut() {

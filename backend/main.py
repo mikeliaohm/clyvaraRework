@@ -77,7 +77,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8001", "http://localhost:8002", "http://localhost:8003"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -217,7 +217,7 @@ class SignupRequest(BaseModel):
     institution: Optional[str] = None
 
 class LoginRequest(BaseModel):
-    username: str
+    email: str
     password: str
 
 class AuthResponse(BaseModel):
@@ -279,15 +279,15 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
 @app.post("/api/auth/login", response_model=AuthResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate user and return access token"""
-    # Find user by username
-    user = db.query(User).filter(User.username == request.username).first()
+    # Find user by email
+    user = db.query(User).filter(User.email == request.email).first()
 
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     # Verify password
     if not verify_password(request.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
 
     # Generate access token
     access_token = create_access_token(
@@ -3584,25 +3584,25 @@ async def get_my_profile_with_user_data(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get combined user data from Supabase and profile from database"""
+    """Get user profile data"""
     try:
-        # Convert user_id string to UUID if needed
-        user_id_uuid = _get_user_uuid(current_user["user_id"])
+        # Get user_id as integer
+        user_id = int(current_user["user_id"])
         
-        profile = (
-            db.query(Profile)
-            .filter(Profile.id == user_id_uuid)
-            .first()
-        )
+        # Query the User table
+        user = db.query(User).filter(User.id == user_id).first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
         user_data = {
-            "user_id": current_user["user_id"],
-            "email": current_user.get("email"),
-            "full_name": profile.full_name if profile else None,
-            "institution": profile.institution if profile else None,
-            "grad_year": profile.grad_year if profile else None,
-            "specialty": profile.specialty if profile else None,
-            "profile_exists": profile is not None,
+            "user_id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "institution": user.institution,
+            "grad_year": user.graduation_year,
+            "specialty": user.specialty,
+            "profile_exists": user.profile_completed,
         }
 
         return {
