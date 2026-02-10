@@ -1,6 +1,7 @@
 // /frontend/src/utils/useAuth.js
+// MIGRATED: Now uses custom auth client instead of Supabase
 import { useEffect, useState } from 'react';
-import { supabase } from './supabaseClient';
+import { authClient } from './authClient';
 
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -8,17 +9,17 @@ export function useAuth() {
 
   useEffect(() => {
     // get current session on load
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    authClient.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setChecking(false);
     });
 
     // listen for changes (sign in / out)
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { subscription } = authClient.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
-    return () => sub.subscription.unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
   return { user, checking };

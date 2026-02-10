@@ -19,11 +19,12 @@ import jwt
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
-from database import get_db, test_connection, ChatMessage, UserInteraction, UserSession, Material, VectorIndexEntry, CarePlan, Profile, LearningPlan, LearningPlanProgress
+from database import get_db, test_connection, ChatMessage, UserInteraction, UserSession, Material, VectorIndexEntry, CarePlan, Profile, LearningPlan, LearningPlanProgress, User
 from material_cache import (
     get_cached_text, cache_text, invalidate_cache, preload_system_materials, get_cache_stats,
     get_cached_vector_entries, cache_vector_entries, invalidate_vector_cache
 )
+from auth import get_current_user, create_access_token, hash_password, verify_password
 
 load_dotenv()
 
@@ -31,40 +32,18 @@ print("=" * 60)
 print("Starting FastAPI application...")
 print("=" * 60)
 
-# Supabase JWT secret for token verification
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
-if SUPABASE_JWT_SECRET:
-    print("✓ SUPABASE_JWT_SECRET found")
+# JWT secret for token verification
+JWT_SECRET = os.getenv("JWT_SECRET")
+if JWT_SECRET and JWT_SECRET != "your_random_jwt_secret_here":
+    print("✓ JWT_SECRET found")
 else:
-    print("✗ WARNING: SUPABASE_JWT_SECRET not set")
+    print("✗ WARNING: JWT_SECRET not set - using default (not secure for production)")
 
 # System materials user ID - materials with this user_id are accessible to all users
 SYSTEM_USER_ID = "SYSTEM"
 
 # Cache for general query embedding (since it's always the same)
 _general_query_embedding_cache = None
-
-def get_current_user(authorization: str = Header(None)):
-    """Extract user info from Supabase JWT token"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
-    
-    token = authorization.split(" ")[1]
-    
-    try:
-        # For Supabase tokens, decode without signature verification for now
-        # This is a simplified approach for development
-        payload = jwt.decode(token, options={"verify_signature": False})
-        
-        return {
-            "user_id": payload.get("sub"),
-            "email": payload.get("email"),
-            "role": payload.get("role", "authenticated")
-        }
-    except jwt.InvalidTokenError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Token error: {str(e)}")
 
 # Initialize OpenAI client only if API key is available
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -217,12 +196,146 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[st
     """Split text into overlapping chunks for better retrieval"""
     words = text.split()
     chunks = []
-    
+
     for i in range(0, len(words), chunk_size - overlap):
         chunk = " ".join(words[i:i + chunk_size])
         chunks.append(chunk)
-    
+
     return chunks
+
+# ============================================================
+# Authentication Endpoints
+# ============================================================
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    username: str
+    specialty: Optional[str] = None
+    graduation_year: Optional[int] = None
+    institution: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: Dict[str, Any]
+
+@app.post("/api/auth/signup", response_model=AuthResponse)
+def signup(request: SignupRequest, db: Session = Depends(get_db)):
+    """Create a new user account"""
+    # Check if username already exists
+    existing_user = db.query(User).filter(User.username == request.username).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    # Check if email already exists
+    existing_email = db.query(User).filter(User.email == request.email).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="Email already exists")
+
+    # Create new user
+    hashed_pwd = hash_password(request.password)
+    new_user = User(
+        username=request.username,
+        password=hashed_pwd,
+        email=request.email,
+        full_name=request.full_name,
+        specialty=request.specialty,
+        graduation_year=request.graduation_year,
+        institution=request.institution,
+        profile_completed=bool(request.specialty and request.graduation_year and request.institution)
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    # Generate access token
+    access_token = create_access_token(
+        user_id=str(new_user.id),
+        email=new_user.email
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": new_user.id,
+            "username": new_user.username,
+            "email": new_user.email,
+            "full_name": new_user.full_name,
+            "specialty": new_user.specialty,
+            "graduation_year": new_user.graduation_year,
+            "institution": new_user.institution,
+            "profile_completed": new_user.profile_completed
+        }
+    }
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """Authenticate user and return access token"""
+    # Find user by username
+    user = db.query(User).filter(User.username == request.username).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    # Verify password
+    if not verify_password(request.password, user.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    # Generate access token
+    access_token = create_access_token(
+        user_id=str(user.id),
+        email=user.email
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "full_name": user.full_name,
+            "specialty": user.specialty,
+            "graduation_year": user.graduation_year,
+            "institution": user.institution,
+            "profile_completed": user.profile_completed
+        }
+    }
+
+@app.get("/api/auth/me")
+def get_current_user_info(current_user: Dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get current user information from token"""
+    user_id = current_user.get("user_id")
+
+    # Try to fetch from database for full user info
+    user = db.query(User).filter(User.id == int(user_id)).first()
+
+    if user:
+        return {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "full_name": user.full_name,
+            "specialty": user.specialty,
+            "graduation_year": user.graduation_year,
+            "institution": user.institution,
+            "profile_completed": user.profile_completed
+        }
+
+    # Fallback to token data if user not found in database
+    return current_user
+
+# ============================================================
+# Application Endpoints
+# ============================================================
 
 @app.get("/")
 def root():

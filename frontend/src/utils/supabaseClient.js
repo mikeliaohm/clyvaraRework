@@ -1,8 +1,14 @@
 // /frontend/src/utils/supabaseClient.js
-import { createClient } from '@supabase/supabase-js';
+// MIGRATED: Now uses custom auth client instead of Supabase
+// This file is kept for backward compatibility
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { authClient, auth } from './authClient';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Export auth client with backward-compatible name
+export const supabase = {
+  auth,
+  // Add any other commonly used methods here for compatibility
+};
 
+export { authClient };
+export default supabase;
