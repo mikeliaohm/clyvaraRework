@@ -44,7 +44,7 @@ Run **backend** and **frontend** separately:
 
 #### Backend
 ```bash
-uvicorn main:app --reload
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 #### Frontend

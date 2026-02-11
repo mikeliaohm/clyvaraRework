@@ -1,6 +1,7 @@
 """
-Custom JWT Authentication module
-Replaces Supabase authentication with local JWT-based auth
+Hybrid JWT Authentication module
+- Development: Local JWT-based auth
+- Production: Supabase Auth integration (backend proxies to Supabase)
 """
 
 import os
@@ -13,8 +14,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Environment mode: 'local' or 'supabase'
+AUTH_MODE = os.getenv("AUTH_MODE", "local")
+
 # JWT Configuration
 JWT_SECRET = os.getenv("JWT_SECRET", "your_random_jwt_secret_here")
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")  # For production
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
@@ -56,7 +61,7 @@ def create_access_token(user_id: str, email: str, additional_claims: Optional[Di
 
 def decode_token(token: str) -> Dict:
     """
-    Decode and verify a JWT token
+    Decode and verify a JWT token (supports both local and Supabase modes)
 
     Args:
         token: JWT token string
@@ -68,7 +73,18 @@ def decode_token(token: str) -> Dict:
         HTTPException: If token is invalid or expired
     """
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if AUTH_MODE == "supabase" and SUPABASE_JWT_SECRET:
+            # Production: Verify Supabase JWT
+            payload = jwt.decode(
+                token, 
+                SUPABASE_JWT_SECRET, 
+                algorithms=[JWT_ALGORITHM],
+                audience="authenticated"
+            )
+        else:
+            # Development: Verify local JWT
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
@@ -127,3 +143,102 @@ def get_optional_user(authorization: str = Header(None)) -> Optional[Dict]:
         }
     except:
         return None
+
+# ============================================================
+# Supabase Integration (for production mode)
+# ============================================================
+
+async def supabase_signup(email: str, password: str, metadata: Dict = None) -> Dict:
+    """
+    Proxy signup request to Supabase Auth (production mode only)
+    
+    Returns:
+        {
+            "access_token": str,
+            "user": {
+                "id": str,
+                "email": str,
+                ...
+            }
+        }
+    """
+    import httpx
+    
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_ANON_KEY")
+    
+    if not supabase_url or not supabase_key:
+        raise HTTPException(
+            status_code=500, 
+            detail="Supabase credentials not configured"
+        )
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{supabase_url}/auth/v1/signup",
+            json={
+                "email": email,
+                "password": password,
+                "data": metadata or {}
+            },
+            headers={
+                "apikey": supabase_key,
+                "Content-Type": "application/json"
+            }
+        )
+        
+        if response.status_code != 200:
+            error = response.json()
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=error.get("error_description") or error.get("msg", "Signup failed")
+            )
+        
+        return response.json()
+
+async def supabase_login(email: str, password: str) -> Dict:
+    """
+    Proxy login request to Supabase Auth (production mode only)
+    
+    Returns:
+        {
+            "access_token": str,
+            "user": {
+                "id": str,
+                "email": str,
+                ...
+            }
+        }
+    """
+    import httpx
+    
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_ANON_KEY")
+    
+    if not supabase_url or not supabase_key:
+        raise HTTPException(
+            status_code=500, 
+            detail="Supabase credentials not configured"
+        )
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{supabase_url}/auth/v1/token?grant_type=password",
+            json={
+                "email": email,
+                "password": password
+            },
+            headers={
+                "apikey": supabase_key,
+                "Content-Type": "application/json"
+            }
+        )
+        
+        if response.status_code != 200:
+            error = response.json()
+            raise HTTPException(
+                status_code=401,
+                detail=error.get("error_description") or error.get("msg", "Invalid credentials")
+            )
+        
+        return response.json()

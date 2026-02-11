@@ -24,7 +24,7 @@ from material_cache import (
     get_cached_text, cache_text, invalidate_cache, preload_system_materials, get_cache_stats,
     get_cached_vector_entries, cache_vector_entries, invalidate_vector_cache
 )
-from auth import get_current_user, create_access_token, hash_password, verify_password
+from auth import get_current_user, create_access_token, hash_password, verify_password, AUTH_MODE, supabase_signup, supabase_login
 
 load_dotenv()
 
@@ -226,8 +226,61 @@ class AuthResponse(BaseModel):
     user: Dict[str, Any]
 
 @app.post("/api/auth/signup", response_model=AuthResponse)
-def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    """Create a new user account"""
+async def signup(request: SignupRequest, db: Session = Depends(get_db)):
+    """Create a new user account (supports local and Supabase modes)"""
+    
+    if AUTH_MODE == "supabase":
+        # Production: Use Supabase Auth
+        try:
+            result = await supabase_signup(
+                email=request.email,
+                password=request.password,
+                metadata={
+                    "full_name": request.full_name,
+                    "username": request.username,
+                    "specialty": request.specialty,
+                    "graduation_year": request.graduation_year,
+                    "institution": request.institution
+                }
+            )
+            
+            # Store user metadata in local DB for quick access
+            user_id = result["user"]["id"]
+            new_user = User(
+                id=user_id,  # Use Supabase UUID
+                username=request.username,
+                password="",  # No password stored locally in Supabase mode
+                email=request.email,
+                full_name=request.full_name,
+                specialty=request.specialty,
+                graduation_year=request.graduation_year,
+                institution=request.institution,
+                profile_completed=bool(request.specialty and request.graduation_year and request.institution)
+            )
+            
+            db.add(new_user)
+            db.commit()
+            
+            return {
+                "access_token": result["access_token"],
+                "token_type": "bearer",
+                "user": {
+                    "id": user_id,
+                    "username": request.username,
+                    "email": request.email,
+                    "full_name": request.full_name,
+                    "specialty": request.specialty,
+                    "graduation_year": request.graduation_year,
+                    "institution": request.institution,
+                    "profile_completed": new_user.profile_completed
+                }
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
+    
+    # Local mode: Custom JWT authentication
     # Check if username already exists
     existing_user = db.query(User).filter(User.username == request.username).first()
     if existing_user:
@@ -277,8 +330,57 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
     }
 
 @app.post("/api/auth/login", response_model=AuthResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate user and return access token"""
+async def login(request: LoginRequest, db: Session = Depends(get_db)):
+    """Authenticate user and return access token (supports local and Supabase modes)"""
+    
+    if AUTH_MODE == "supabase":
+        # Production: Use Supabase Auth
+        try:
+            result = await supabase_login(
+                email=request.email,
+                password=request.password
+            )
+            
+            # Get user data from local DB
+            user_id = result["user"]["id"]
+            user = db.query(User).filter(User.id == user_id).first()
+            
+            if not user:
+                # Create user record if it doesn't exist
+                user = User(
+                    id=user_id,
+                    username=result["user"].get("email", "").split("@")[0],
+                    password="",
+                    email=result["user"]["email"],
+                    full_name=result["user"].get("user_metadata", {}).get("full_name", ""),
+                    specialty=result["user"].get("user_metadata", {}).get("specialty"),
+                    graduation_year=result["user"].get("user_metadata", {}).get("graduation_year"),
+                    institution=result["user"].get("user_metadata", {}).get("institution"),
+                    profile_completed=False
+                )
+                db.add(user)
+                db.commit()
+            
+            return {
+                "access_token": result["access_token"],
+                "token_type": "bearer",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "full_name": user.full_name,
+                    "specialty": user.specialty,
+                    "graduation_year": user.graduation_year,
+                    "institution": user.institution,
+                    "profile_completed": user.profile_completed
+                }
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"Login failed: {str(e)}")
+    
+    # Local mode: Custom JWT authentication
     # Find user by email
     user = db.query(User).filter(User.email == request.email).first()
 
