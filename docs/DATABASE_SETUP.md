@@ -1,13 +1,17 @@
-# Database Setup Guide
+# Local Database Setup Guide
 
-This guide will help you migrate from Supabase to a local PostgreSQL database instance.
+This guide covers setting up a local PostgreSQL database for **development only**.
+
+For production deployment with AWS RDS, see [AWS_DEPLOYMENT.md](./AWS_DEPLOYMENT.md).
 
 ## Overview
 
-The application has been migrated from Supabase to use:
+For local development, the application uses:
 - **Local PostgreSQL** database for data storage
-- **Custom JWT authentication** instead of Supabase Auth
+- **Custom JWT authentication** instead of cloud auth services
 - **Alembic** for database migrations
+
+**Production uses a different setup**: AWS RDS + Supabase Auth (see [ARCHITECTURE.md](./ARCHITECTURE.md))
 
 ## Prerequisites
 

@@ -16,17 +16,29 @@ source <env_name>/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure backend environment variables (OpenAI)
-Create a `.env` file in /backend and add your OpenAI API secret key:
-```
-OPENAI_API_KEY="your_secret_key_here"
+### 3. Set up local database
+See [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md) for detailed instructions:
+```bash
+# Create PostgreSQL database
+createdb clyvara_dev
+
+# Copy environment example
+cp .env.example .env
+
+# Edit .env with your settings
+# Required: DATABASE_URL, JWT_SECRET, OPENAI_API_KEY
 ```
 
-### 4. Configure frontend environment variables (Supabase)
-Create a `.env.local` file in /frontend and add your Supabase credentials:
+### 4. Run database migrations
+```bash
+cd backend
+python create_migration.py upgrade
 ```
-VITE_SUPABASE_URL= "supabase_url_here"
-VITE_SUPABASE_ANON_KEY="your_secret_key_here"
+
+### 5. Configure frontend
+Create a `.env` file in /frontend:
+```
+VITE_API_URL=http://localhost:8000
 ```
 
 ---
@@ -54,35 +66,67 @@ npm run dev
 
 ---
 
-## 📦 AWS Services Setup
+## 🏗️ Architecture
 
-### AWS RDS (PostgreSQL on PgAdmin4)
+This application uses a **hybrid architecture**:
+
+### Development (Local)
+- **Database**: Local PostgreSQL
+- **Auth**: Custom JWT authentication
+- **Benefits**: No cloud dependencies, fast iteration
+
+### Production (AWS + Supabase)
+- **Database**: AWS RDS PostgreSQL (us-east-2)
+- **Auth**: Supabase Auth (OAuth, magic links)
+- **Storage**: AWS S3 (us-east-2)
+- **Benefits**: Enterprise-grade services
+
+**Key Feature**: Frontend code is identical in both environments. Backend handles the differences.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture diagrams.
+
+---
+
+## 📦 Production Services
+
+### AWS RDS (PostgreSQL)
 1. Download [PgAdmin4](https://www.pgadmin.org/download/)
 2. Connect to RDS:
-   - Enter Hostname/Address, Port, Username from RDS (make sure to use `us-east-2` region)
-   - Ask Christian for password/credentials
-   - **Parameters**: 
-     - First: SSL Mode → value: `require`
-     - Second (Optional): Connection timeout
+   - Hostname/Address from AWS Console (us-east-2 region)
+   - Ask team lead for credentials
+   - **SSL Mode**: `require`
 3. **Database Schemas**: 
-   - In RDS, there are four schemas: `dashboard`, `main`, `public`, and `user_data`
-   - The most frequently used ones are `main` and `user_data`
+   - `main` - Core application data (users, courses, materials, care plans)
+   - `user_data` - Activity tracking (chat, interactions)
+   - `dashboard` - Analytics and widgets
+   - `public` - System tables (sessions, OAuth)
 
-### AWS SageMaker
+### Supabase Auth (Production Only)
+- Used for authentication in production
+- Provides OAuth (Google, GitHub), magic links, password reset
+- Backend proxies all auth requests
+- Frontend never calls Supabase directly
+
+### AWS S3
+- **Bucket**: `clyvara-uploads` (us-east-2)
+- **Purpose**: Store uploaded materials (PDFs, documents)
+- **Local Development**: Files stored locally (no S3 needed)
+
+### AWS SageMaker (ML Experiments)
 1. **Access**: 
    - Domain: `Clyvara_Health`
    - Project name: `Clyvara_ML`
-2. **Authentication**: 
-   - Christian may need to give you authentications for S3, Manager, or may need to add you as a member
-3. **Datasets**: 
-   - Download ednet (kt-1 to kt-4) datasets via SageMaker
-4. **SAKT Model**: 
-   - Run SAKT model (initial experiments are done in `Dev.ipynb`)
+2. **Datasets**: 
+   - ednet (kt-1 to kt-4) datasets
+3. **Models**: 
+   - SAKT model experiments in `Dev.ipynb`
 
 
 ## 🧩 Notes
-- Make sure both backend and frontend servers are running for full functionality.  
-- Commit changes only from feature branches — open a PR to merge into `main`.  
-- Use the `.env.example` format (if present) for consistent environment setup.
+- Make sure both backend and frontend servers are running for full functionality
+- Commit changes only from feature branches — open a PR to merge into `main`
+- See [docs/HYBRID_AUTH.md](docs/HYBRID_AUTH.md) for authentication details
+- See [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md) for local database setup
+- See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for complete architecture overview
 
 

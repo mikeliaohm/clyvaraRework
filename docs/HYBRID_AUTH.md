@@ -2,7 +2,7 @@
 
 This application supports a **hybrid authentication approach**:
 - **Development**: Local PostgreSQL + Custom JWT authentication
-- **Production**: Supabase PostgreSQL + Supabase Auth
+- **Production**: AWS RDS PostgreSQL + Supabase Auth (backend proxies)
 
 ## Key Benefits
 
@@ -38,13 +38,14 @@ User → Frontend → Backend (/api/auth/login) → Supabase Auth API
                       ↓                              ↓
                   Frontend                  Backend verifies JWT
                                                     ↓
-                                           Supabase PostgreSQL
+                                              AWS RDS PostgreSQL
 ```
 
 **Features:**
-- Supabase managed PostgreSQL
+- AWS RDS PostgreSQL (your existing database)
 - Supabase Auth (OAuth, magic links, etc.)
-- Backend proxies auth requests
+- Backend proxies auth requests to Supabase
+- Backend stores data in AWS RDS
 - Frontend remains unchanged
 
 ## Environment Configuration
@@ -63,7 +64,7 @@ JWT_SECRET=your_secret_key
 ```bash
 # .env
 AUTH_MODE=supabase
-DATABASE_URL=postgresql+psycopg://postgres.xxxxx:[password]@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+DATABASE_URL=postgresql+psycopg://username:password@your-rds-endpoint.us-east-2.rds.amazonaws.com:5432/clyvara_prod
 SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_JWT_SECRET=your_jwt_secret
@@ -108,7 +109,7 @@ Returns: { id, email, username, ... }
 1. Frontend → `POST /api/auth/signup`
 2. Backend proxies to Supabase Auth API
 3. Supabase creates user + generates JWT
-4. Backend stores user metadata in Supabase PostgreSQL
+4. Backend stores user metadata in AWS RDS PostgreSQL
 5. Returns Supabase JWT to frontend
 
 ### Login Flow
@@ -124,7 +125,7 @@ Returns: { id, email, username, ... }
 1. Frontend → `POST /api/auth/login`
 2. Backend proxies to Supabase Auth API
 3. Supabase validates credentials + generates JWT
-4. Backend syncs user data if needed
+4. Backend syncs user data to AWS RDS if needed
 5. Returns Supabase JWT to frontend
 
 ### Request Authentication
@@ -150,24 +151,31 @@ payload = jwt.decode(
 
 ### Local → Production
 
-1. **Set up Supabase project**
+1. **Set up Supabase project (Auth only)**
    - Create project at https://supabase.com
-   - Note: Database URL, Anon Key, JWT Secret
+   - Enable Auth in Supabase dashboard
+   - Note: Supabase URL, Anon Key, JWT Secret
+   - **Important**: You're only using Supabase for Auth, not the database
 
-2. **Run migrations on Supabase**
+2. **Ensure AWS RDS is ready**
+   - Verify AWS RDS PostgreSQL is running (us-east-2)
+   - Ensure security group allows connections from your backend
+   - Get connection credentials
+
+3. **Run migrations on AWS RDS**
    ```bash
-   # Update DATABASE_URL to Supabase
-   DATABASE_URL=postgresql+psycopg://postgres.xxx:...
+   # Update DATABASE_URL to AWS RDS
+   DATABASE_URL=postgresql+psycopg://username:password@your-rds-endpoint.us-east-2.rds.amazonaws.com:5432/clyvara_prod
    
    # Run migrations
    cd backend
    python create_migration.py upgrade
    ```
 
-3. **Update environment variables**
+4. **Update environment variables**
    ```bash
    AUTH_MODE=supabase
-   DATABASE_URL=postgresql+psycopg://...supabase.com.../postgres
+   DATABASE_URL=postgresql+psycopg://username:password@your-rds-endpoint.us-east-2.rds.amazonaws.com:5432/clyvara_prod
    SUPABASE_URL=https://xxxxx.supabase.co
    SUPABASE_ANON_KEY=...
    SUPABASE_JWT_SECRET=...
@@ -258,3 +266,16 @@ Potential additions to the hybrid system:
 - Multi-factor authentication (MFA)
 - Session management improvements
 - Token refresh handling
+
+## Production Deployment
+
+For complete production deployment guide with AWS RDS + Supabase Auth:
+- See [AWS_DEPLOYMENT.md](./AWS_DEPLOYMENT.md) - Step-by-step AWS RDS setup
+- See [ARCHITECTURE.md](./ARCHITECTURE.md) - Complete architecture diagrams
+
+Quick production setup summary:
+1. Set up Supabase project (auth only)
+2. Configure AWS RDS PostgreSQL
+3. Run migrations on AWS RDS
+4. Deploy backend with `AUTH_MODE=supabase`
+5. Frontend works without changes
