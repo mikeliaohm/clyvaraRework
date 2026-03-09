@@ -218,10 +218,10 @@ class User(Base):
     __table_args__ = {'schema': 'main'}
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String, nullable=False, unique=True)
+    username = Column(String, nullable=True, unique=True)
     password = Column(String, nullable=False)
     hashed_password = synonym("password")
-    full_name = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
     email = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
     is_superuser = Column(Boolean, nullable=False, default=False, server_default=text("false"))

@@ -1,6 +1,7 @@
 """FastAPI Users integration for incremental migration from custom auth."""
 
 import os
+import uuid
 from typing import Optional, AsyncGenerator
 
 from fastapi import Depends, Request
@@ -23,8 +24,8 @@ class UserRead(fu_schemas.BaseUser[int]):
 
 
 class UserCreate(fu_schemas.BaseUserCreate):
-    username: str
-    full_name: str
+    username: Optional[str] = None
+    full_name: Optional[str] = None
     specialty: Optional[str] = None
     graduation_year: Optional[int] = None
     institution: Optional[str] = None
@@ -65,6 +66,16 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
 
         self.user_db.session.add(UserRole(user_id=user_id, role_id=role.id))
         await self.user_db.session.commit()
+
+    async def create(self, user_create, safe: bool = False, request: Optional[Request] = None):
+        # Derive username and full_name from email when not provided so the
+        # NOT NULL DB constraints are never violated.
+        email_prefix = user_create.email.split("@")[0]
+        if not user_create.username:
+            user_create.username = f"{email_prefix}_{uuid.uuid4().hex[:6]}"
+        if not user_create.full_name:
+            user_create.full_name = email_prefix
+        return await super().create(user_create, safe=safe, request=request)
 
     async def on_after_register(self, user: User, request: Optional[Request] = None):
         # Ensure every account created via fastapi-users gets baseline RBAC.
