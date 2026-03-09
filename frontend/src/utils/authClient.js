@@ -30,20 +30,10 @@ class AuthClient {
 
   async signup({ email, password, full_name, username, specialty, graduation_year, institution }) {
     try {
-      const response = await fetch(`${API_URL}/api/auth/signup`, {
+      const response = await fetch(`${API_URL}/api/fau/auth/register`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          full_name,
-          username,
-          specialty,
-          graduation_year,
-          institution,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, full_name, username, specialty, graduation_year, institution }),
       });
 
       if (!response.ok) {
@@ -51,10 +41,8 @@ class AuthClient {
         throw new Error(error.detail || 'Signup failed');
       }
 
-      const data = await response.json();
-      this.saveAuth(data.access_token, data.user);
-
-      return { data: { user: data.user }, error: null };
+      // Registration returns user data but no token — auto-login to get one
+      return this.login({ email, password });
     } catch (error) {
       return { data: null, error };
     }
@@ -62,23 +50,36 @@ class AuthClient {
 
   async login({ email, password }) {
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      // fastapi-users login uses OAuth2 form data (username field = email)
+      const formData = new FormData();
+      formData.append('username', email);
+      formData.append('password', password);
+
+      const tokenResponse = await fetch(`${API_URL}/api/fau/auth/jwt/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
+        body: formData,
       });
 
-      if (!response.ok) {
-        const error = await response.json();
+      if (!tokenResponse.ok) {
+        const error = await tokenResponse.json();
         throw new Error(error.detail || 'Login failed');
       }
 
-      const data = await response.json();
-      this.saveAuth(data.access_token, data.user);
+      const { access_token } = await tokenResponse.json();
 
-      return { data: { user: data.user }, error: null };
+      // Fetch user profile with the new token
+      const userResponse = await fetch(`${API_URL}/api/fau/users/me`, {
+        headers: { 'Authorization': `Bearer ${access_token}` },
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('Failed to fetch user profile');
+      }
+
+      const user = await userResponse.json();
+      this.saveAuth(access_token, user);
+
+      return { data: { user }, error: null };
     } catch (error) {
       return { data: null, error };
     }
@@ -96,7 +97,7 @@ class AuthClient {
 
     try {
       // Verify token is still valid by fetching user info
-      const response = await fetch(`${API_URL}/api/auth/me`, {
+      const response = await fetch(`${API_URL}/api/fau/users/me`, {
         headers: {
           'Authorization': `Bearer ${this.token}`,
         },

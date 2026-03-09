@@ -1,8 +1,9 @@
 #populated database schemas
 
-from sqlalchemy import create_engine, Column, String, DateTime, JSON, Integer, Boolean, DECIMAL, Text, text, Numeric
+from sqlalchemy import create_engine, Column, String, DateTime, JSON, Integer, Boolean, DECIMAL, Text, text, Numeric, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, synonym
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.dialects.postgresql import INET, UUID
 from sqlalchemy.sql import func
 import os
@@ -21,6 +22,20 @@ def get_engine():
 def get_session_local():
     return sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
 
+
+def get_async_engine():
+    return create_async_engine(DATABASE_URL)
+
+
+def get_async_session_local():
+    return async_sessionmaker(
+        get_async_engine(),
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )
+
 Base = declarative_base()
 
 # Dependency for database sessions
@@ -31,6 +46,12 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+async def get_async_db():
+    AsyncSessionLocal = get_async_session_local()
+    async with AsyncSessionLocal() as db:
+        yield db
 
 # User Data Schema Models
 class ChatMessage(Base):
@@ -199,14 +220,42 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
+    hashed_password = synonym("password")
     full_name = Column(String, nullable=False)
     email = Column(String, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
+    is_superuser = Column(Boolean, nullable=False, default=False, server_default=text("false"))
+    is_verified = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     specialty = Column(String)  # nursing, medical-school, nurse-anesthesia, nurse-practitioner
     graduation_year = Column(Integer)
     institution = Column(String)
     profile_completed = Column(Boolean, default=False)
     avatar = Column(String)
     requires_password_change = Column(Boolean, default=False)
+    external_auth_id = Column(String, unique=True)  # Supabase/external auth subject
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class Role(Base):
+    __tablename__ = "roles"
+    __table_args__ = {'schema': 'main'}
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), nullable=False, unique=True)
+    description = Column(String)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+    __table_args__ = (
+        UniqueConstraint("user_id", "role_id", name="uq_user_roles_user_role"),
+        {'schema': 'main'}
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("main.users.id"), nullable=False)
+    role_id = Column(Integer, ForeignKey("main.roles.id"), nullable=False)
     created_at = Column(DateTime, server_default=func.now())
 
 class Waitlist(Base):

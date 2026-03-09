@@ -15,16 +15,19 @@ from docx import Document
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
-import jwt
-
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
-from database import get_db, test_connection, ChatMessage, UserInteraction, UserSession, Material, VectorIndexEntry, CarePlan, Profile, LearningPlan, LearningPlanProgress, User
+from database import get_db, test_connection, ChatMessage, UserInteraction, UserSession, Material, VectorIndexEntry, CarePlan, Profile, LearningPlan, LearningPlanProgress, User, Role, UserRole
 from material_cache import (
     get_cached_text, cache_text, invalidate_cache, preload_system_materials, get_cache_stats,
     get_cached_vector_entries, cache_vector_entries, invalidate_vector_cache
 )
-from auth import get_current_user, create_access_token, hash_password, verify_password, AUTH_MODE, supabase_signup, supabase_login
+from fastapi_users_setup import fastapi_users, auth_backend, UserRead, UserCreate, UserUpdate, current_active_fau_user
+
+
+async def get_current_user(user: User = Depends(current_active_fau_user)) -> Dict:
+    """Compatibility wrapper — returns the same dict shape the existing endpoints expect."""
+    return {"user_id": str(user.id), "email": user.email, "role": "authenticated", "roles": []}
 
 load_dotenv()
 
@@ -81,6 +84,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
+)
+
+# FastAPI Users routers (incremental adoption path)
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/api/fau/auth/jwt",
+    tags=["fastapi-users-auth"],
+)
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/api/fau/auth",
+    tags=["fastapi-users-auth"],
+)
+app.include_router(
+    fastapi_users.get_users_router(UserRead, UserUpdate),
+    prefix="/api/fau/users",
+    tags=["fastapi-users-users"],
 )
 
 @app.on_event("startup")
@@ -203,237 +223,54 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[st
 
     return chunks
 
-# ============================================================
-# Authentication Endpoints
-# ============================================================
+def _get_user_role_names(db: Session, user_id: int) -> List[str]:
+    rows = db.query(Role.name).join(UserRole, UserRole.role_id == Role.id).filter(
+        UserRole.user_id == user_id
+    ).all()
+    return [row[0] for row in rows]
 
-class SignupRequest(BaseModel):
-    email: str
-    password: str
-    full_name: str
-    username: str
-    specialty: Optional[str] = None
-    graduation_year: Optional[int] = None
-    institution: Optional[str] = None
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
+def _resolve_user_from_auth_context(db: Session, current_user: Dict[str, Any]) -> Optional[User]:
+    token_user_id = current_user.get("user_id")
+    token_email = current_user.get("email")
 
-class AuthResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    user: Dict[str, Any]
-
-@app.post("/api/auth/signup", response_model=AuthResponse)
-async def signup(request: SignupRequest, db: Session = Depends(get_db)):
-    """Create a new user account (supports local and Supabase modes)"""
-    
-    if AUTH_MODE == "supabase":
-        # Production: Use Supabase Auth
+    if token_user_id is not None:
         try:
-            result = await supabase_signup(
-                email=request.email,
-                password=request.password,
-                metadata={
-                    "full_name": request.full_name,
-                    "username": request.username,
-                    "specialty": request.specialty,
-                    "graduation_year": request.graduation_year,
-                    "institution": request.institution
-                }
-            )
-            
-            # Store user metadata in local DB for quick access
-            user_id = result["user"]["id"]
-            new_user = User(
-                id=user_id,  # Use Supabase UUID
-                username=request.username,
-                password="",  # No password stored locally in Supabase mode
-                email=request.email,
-                full_name=request.full_name,
-                specialty=request.specialty,
-                graduation_year=request.graduation_year,
-                institution=request.institution,
-                profile_completed=bool(request.specialty and request.graduation_year and request.institution)
-            )
-            
-            db.add(new_user)
-            db.commit()
-            
-            return {
-                "access_token": result["access_token"],
-                "token_type": "bearer",
-                "user": {
-                    "id": user_id,
-                    "username": request.username,
-                    "email": request.email,
-                    "full_name": request.full_name,
-                    "specialty": request.specialty,
-                    "graduation_year": request.graduation_year,
-                    "institution": request.institution,
-                    "profile_completed": new_user.profile_completed
-                }
-            }
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
-    
-    # Local mode: Custom JWT authentication
-    # Check if username already exists
-    existing_user = db.query(User).filter(User.username == request.username).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already exists")
+            numeric_user_id = int(token_user_id)
+            user = db.query(User).filter(User.id == numeric_user_id).first()
+            if user:
+                return user
+        except (TypeError, ValueError):
+            user = db.query(User).filter(User.external_auth_id == str(token_user_id)).first()
+            if user:
+                return user
 
-    # Check if email already exists
-    existing_email = db.query(User).filter(User.email == request.email).first()
-    if existing_email:
-        raise HTTPException(status_code=400, detail="Email already exists")
+    if token_email:
+        return db.query(User).filter(User.email == token_email).first()
 
-    # Create new user
-    hashed_pwd = hash_password(request.password)
-    new_user = User(
-        username=request.username,
-        password=hashed_pwd,
-        email=request.email,
-        full_name=request.full_name,
-        specialty=request.specialty,
-        graduation_year=request.graduation_year,
-        institution=request.institution,
-        profile_completed=bool(request.specialty and request.graduation_year and request.institution)
-    )
+    return None
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
 
-    # Generate access token
-    access_token = create_access_token(
-        user_id=str(new_user.id),
-        email=new_user.email
-    )
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": new_user.id,
-            "username": new_user.username,
-            "email": new_user.email,
-            "full_name": new_user.full_name,
-            "specialty": new_user.specialty,
-            "graduation_year": new_user.graduation_year,
-            "institution": new_user.institution,
-            "profile_completed": new_user.profile_completed
-        }
-    }
-
-@app.post("/api/auth/login", response_model=AuthResponse)
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate user and return access token (supports local and Supabase modes)"""
-    
-    if AUTH_MODE == "supabase":
-        # Production: Use Supabase Auth
-        try:
-            result = await supabase_login(
-                email=request.email,
-                password=request.password
-            )
-            
-            # Get user data from local DB
-            user_id = result["user"]["id"]
-            user = db.query(User).filter(User.id == user_id).first()
-            
-            if not user:
-                # Create user record if it doesn't exist
-                user = User(
-                    id=user_id,
-                    username=result["user"].get("email", "").split("@")[0],
-                    password="",
-                    email=result["user"]["email"],
-                    full_name=result["user"].get("user_metadata", {}).get("full_name", ""),
-                    specialty=result["user"].get("user_metadata", {}).get("specialty"),
-                    graduation_year=result["user"].get("user_metadata", {}).get("graduation_year"),
-                    institution=result["user"].get("user_metadata", {}).get("institution"),
-                    profile_completed=False
-                )
-                db.add(user)
-                db.commit()
-            
-            return {
-                "access_token": result["access_token"],
-                "token_type": "bearer",
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "full_name": user.full_name,
-                    "specialty": user.specialty,
-                    "graduation_year": user.graduation_year,
-                    "institution": user.institution,
-                    "profile_completed": user.profile_completed
-                }
-            }
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=401, detail=f"Login failed: {str(e)}")
-    
-    # Local mode: Custom JWT authentication
-    # Find user by email
-    user = db.query(User).filter(User.email == request.email).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    # Verify password
-    if not verify_password(request.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    # Generate access token
-    access_token = create_access_token(
-        user_id=str(user.id),
-        email=user.email
-    )
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "full_name": user.full_name,
-            "specialty": user.specialty,
-            "graduation_year": user.graduation_year,
-            "institution": user.institution,
-            "profile_completed": user.profile_completed
-        }
-    }
-
-@app.get("/api/auth/me")
-def get_current_user_info(current_user: Dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Get current user information from token"""
-    user_id = current_user.get("user_id")
-
-    # Try to fetch from database for full user info
-    user = db.query(User).filter(User.id == int(user_id)).first()
+def _enforce_admin_access(
+    db: Session,
+    current_user: Dict[str, Any],
+    x_admin_key: Optional[str]
+) -> None:
+    user = _resolve_user_from_auth_context(db, current_user)
+    user_is_admin = False
 
     if user:
-        return {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "full_name": user.full_name,
-            "specialty": user.specialty,
-            "graduation_year": user.graduation_year,
-            "institution": user.institution,
-            "profile_completed": user.profile_completed
-        }
+        user_is_admin = "admin" in _get_user_role_names(db, user.id)
 
-    # Fallback to token data if user not found in database
-    return current_user
+    # Temporary compatibility path during migration to RBAC
+    admin_api_key = os.getenv("ADMIN_API_KEY")
+    valid_admin_key = bool(admin_api_key and x_admin_key and x_admin_key == admin_api_key)
+
+    if not user_is_admin and not valid_admin_key:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
 
 # ============================================================
 # Application Endpoints
@@ -2148,15 +1985,12 @@ async def upload_file(
 async def upload_system_material(
     file: UploadFile = File(...),
     x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Admin endpoint to upload system materials accessible to all users"""
-    
-    # Optional: Check admin key (set ADMIN_API_KEY in environment)
-    admin_api_key = os.getenv("ADMIN_API_KEY")
-    if admin_api_key:
-        if not x_admin_key or x_admin_key != admin_api_key:
-            raise HTTPException(status_code=403, detail="Invalid admin key")
+
+    _enforce_admin_access(db, current_user, x_admin_key)
     
     # Validate file type
     allowed_types = ["pdf", "docx", "doc", "txt"]

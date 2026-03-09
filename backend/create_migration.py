@@ -15,8 +15,17 @@ from alembic.config import Config
 from alembic import command
 
 def main():
+    # Resolve paths relative to this file so the script works from any CWD.
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    alembic_ini_path = os.path.join(script_dir, "alembic.ini")
+
+    if not os.path.exists(alembic_ini_path):
+        print(f"Error: Alembic config not found at {alembic_ini_path}")
+        sys.exit(1)
+
     # Set up Alembic config
-    alembic_cfg = Config("alembic.ini")
+    alembic_cfg = Config(alembic_ini_path)
+    alembic_cfg.set_main_option("script_location", os.path.join(script_dir, "alembic"))
 
     if len(sys.argv) < 2:
         print(__doc__)
