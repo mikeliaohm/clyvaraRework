@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import SYSTEM_USER_ID
 from database import test_connection
-from fastapi_users_setup import fastapi_users, auth_backend, UserRead, UserCreate, UserUpdate
 from material_cache import preload_system_materials
 
 load_dotenv()
@@ -25,22 +24,12 @@ app.add_middleware(
     allow_credentials=True,
 )
 
-# ── FastAPI-Users routers ──────────────────────────────────────
-app.include_router(
-    fastapi_users.get_auth_router(auth_backend),
-    prefix="/api/fau/auth/jwt",
-    tags=["fastapi-users-auth"],
-)
-app.include_router(
-    fastapi_users.get_register_router(UserRead, UserCreate),
-    prefix="/api/fau/auth",
-    tags=["fastapi-users-auth"],
-)
-app.include_router(
-    fastapi_users.get_users_router(UserRead, UserUpdate),
-    prefix="/api/fau/users",
-    tags=["fastapi-users-users"],
-)
+# ── Dev-mode auth routes (local login/register without Supabase) ──
+from auth import AUTH_MODE
+
+if AUTH_MODE == "local":
+    from routers import dev_auth
+    app.include_router(dev_auth.router)
 
 # ── Domain routers ─────────────────────────────────────────────
 from routers import debug, chat, care_plans, materials, learning_plans, profile
@@ -58,6 +47,7 @@ app.include_router(profile.router)
 async def startup_event():
     print("\n" + "=" * 60)
     print("Running startup tasks...")
+    print(f"AUTH_MODE = {AUTH_MODE}")
     print("=" * 60)
 
     try:

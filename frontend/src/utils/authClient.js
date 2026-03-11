@@ -30,7 +30,7 @@ class AuthClient {
 
   async signup({ email, password, full_name, username, specialty, graduation_year, institution }) {
     try {
-      const response = await fetch(`${API_URL}/api/fau/auth/register`, {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, full_name, username, specialty, graduation_year, institution }),
@@ -50,14 +50,10 @@ class AuthClient {
 
   async login({ email, password }) {
     try {
-      // fastapi-users login uses OAuth2 form data (username field = email)
-      const formData = new FormData();
-      formData.append('username', email);
-      formData.append('password', password);
-
-      const tokenResponse = await fetch(`${API_URL}/api/fau/auth/jwt/login`, {
+      const tokenResponse = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
 
       if (!tokenResponse.ok) {
@@ -68,7 +64,7 @@ class AuthClient {
       const { access_token } = await tokenResponse.json();
 
       // Fetch user profile with the new token
-      const userResponse = await fetch(`${API_URL}/api/fau/users/me`, {
+      const userResponse = await fetch(`${API_URL}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${access_token}` },
       });
 
@@ -97,7 +93,7 @@ class AuthClient {
 
     try {
       // Verify token is still valid by fetching user info
-      const response = await fetch(`${API_URL}/api/fau/users/me`, {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${this.token}`,
         },

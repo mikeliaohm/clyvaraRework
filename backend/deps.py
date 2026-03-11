@@ -4,13 +4,8 @@ from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db, User, Role, UserRole
-from fastapi_users_setup import current_active_fau_user
+from auth import get_current_user  # noqa: F401 — re-exported for routers
 from config import openai_client
-
-
-async def get_current_user(user: User = Depends(current_active_fau_user)) -> Dict:
-    """Compatibility wrapper — returns the same dict shape the existing endpoints expect."""
-    return {"user_id": str(user.id), "email": user.email, "role": "authenticated", "roles": []}
 
 
 def _get_user_role_names(db: Session, user_id: int) -> List[str]:

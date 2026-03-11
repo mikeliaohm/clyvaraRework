@@ -64,7 +64,14 @@ Create `backend/.env` (or repo-root `.env`):
 
 ```env
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/clyvara_dev
+
+# Auth: 'local' for dev (no Supabase needed), 'supabase' for production
+AUTH_MODE=local
+
 JWT_SECRET=<run: python -c "import secrets; print(secrets.token_urlsafe(32))">
+
+# Only needed when AUTH_MODE=supabase
+SUPABASE_JWT_SECRET=
 
 # Optional — AI features won't work without this
 OPENAI_API_KEY=<your_key>
@@ -89,12 +96,13 @@ VITE_API_URL=http://localhost:8000
 
 ## 6. Create accounts for testing
 
-Auth is handled by **fastapi-users**. Start the backend first (see step 7), then:
+With `AUTH_MODE=local` the backend provides its own auth endpoints — no
+external service required. Start the backend first (see step 7), then:
 
 ### Register a user
 
 ```bash
-curl -X POST http://localhost:8000/api/fau/auth/register \
+curl -X POST http://localhost:8000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email": "user@example.com", "password": "password123"}'
 ```
@@ -103,12 +111,10 @@ curl -X POST http://localhost:8000/api/fau/auth/register \
 
 ### Log in and get a token
 
-Login uses **OAuth2 form data** (not JSON):
-
 ```bash
-curl -X POST http://localhost:8000/api/fau/auth/jwt/login \
-  -F "username=user@example.com" \
-  -F "password=password123"
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password123"}'
 ```
 
 The response includes `access_token`. Use it as `Authorization: Bearer <token>` on
@@ -130,6 +136,13 @@ psql $DATABASE_URL -c "
     ON CONFLICT DO NOTHING;
 "
 ```
+
+### Production auth
+
+In production, set `AUTH_MODE=supabase` and `SUPABASE_JWT_SECRET` to your
+project's JWT secret (found in the Supabase dashboard). The local
+login/register routes are disabled — Supabase handles user creation and
+token issuance. The backend only validates incoming JWTs.
 
 ---
 

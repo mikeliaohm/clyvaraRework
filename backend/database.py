@@ -2,7 +2,7 @@
 
 from sqlalchemy import create_engine, Column, String, DateTime, JSON, Integer, Boolean, DECIMAL, Text, text, Numeric, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker, synonym
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.dialects.postgresql import INET, UUID
 from sqlalchemy.sql import func
@@ -220,7 +220,6 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String, nullable=True, unique=True)
     password = Column(String, nullable=False)
-    hashed_password = synonym("password")
     full_name = Column(String, nullable=True)
     email = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True, server_default=text("true"))
