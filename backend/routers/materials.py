@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -272,42 +273,64 @@ async def upload_system_material(
 
 # ── Materials list & delete ───────────────────────────────────
 
+def _material_metadata(m: Material) -> dict:
+    """Return lightweight metadata dict (no extracted text)."""
+    return {
+        "id": m.id,
+        "title": m.title,
+        "file_type": m.file_type,
+        "file_size": m.file_size,
+        "has_file": m.file_path is not None,
+        "status": m.status,
+        "processing_progress": m.processing_progress,
+        "processing_error": m.processing_error,
+        "chunk_count": m.chunk_count,
+        "total_tokens": m.total_tokens,
+        "embedding_model": m.embedding_model,
+        "uploaded_at": m.uploaded_at.isoformat(),
+        "processed_at": m.processed_at.isoformat() if m.processed_at else None,
+        "last_accessed": m.last_accessed.isoformat() if m.last_accessed else None,
+    }
+
+
 @router.get("/api/materials")
 def get_user_materials(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """List all materials for the current user (metadata only, no text content)."""
     materials = (
         db.query(Material)
         .filter(Material.user_id == current_user["user_id"])
         .order_by(Material.uploaded_at.desc())
         .all()
     )
+    return {"materials": [_material_metadata(m) for m in materials]}
 
-    result = []
-    for m in materials:
-        cached = get_cached_text(m.id)
-        extracted_text = cached if cached is not None else m.extracted_text
-        if cached is None and extracted_text:
-            cache_text(m.id, extracted_text)
-        result.append({
-            "id": m.id,
-            "title": m.title,
-            "file_type": m.file_type,
-            "file_path": m.file_path,
-            "file_size": m.file_size,
-            "status": m.status,
-            "processing_progress": m.processing_progress,
-            "processing_error": m.processing_error,
-            "extracted_text": extracted_text,
-            "chunk_count": m.chunk_count,
-            "total_tokens": m.total_tokens,
-            "embedding_model": m.embedding_model,
-            "uploaded_at": m.uploaded_at.isoformat(),
-            "processed_at": m.processed_at.isoformat() if m.processed_at else None,
-            "last_accessed": m.last_accessed.isoformat() if m.last_accessed else None,
-        })
-    return {"materials": result}
+
+@router.get("/api/materials/{material_id}")
+def get_material_detail(
+    material_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get full material detail including extracted text."""
+    material = db.query(Material).filter(
+        Material.id == material_id,
+        Material.user_id == current_user["user_id"],
+    ).first()
+
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    cached = get_cached_text(material.id)
+    extracted_text = cached if cached is not None else material.extracted_text
+    if cached is None and extracted_text:
+        cache_text(material.id, extracted_text)
+
+    result = _material_metadata(material)
+    result["extracted_text"] = extracted_text
+    return result
 
 
 @router.delete("/api/materials/{material_id}")
@@ -335,6 +358,46 @@ def delete_material(
     db.delete(material)
     db.commit()
     return {"success": True, "message": "Material deleted successfully"}
+
+
+@router.get("/api/materials/{material_id}/download")
+def download_material(
+    material_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    material = db.query(Material).filter(
+        Material.id == material_id,
+        Material.user_id == current_user["user_id"],
+    ).first()
+
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    if not material.file_path:
+        raise HTTPException(status_code=404, detail="Original file not available")
+
+    # S3 files would need a presigned URL — for now, only local files are served
+    if material.file_path.startswith("s3://"):
+        raise HTTPException(status_code=501, detail="S3 download not yet implemented")
+
+    file_path = Path(material.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    content_types = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc": "application/msword",
+        "txt": "text/plain",
+    }
+    media_type = content_types.get(material.file_type, "application/octet-stream")
+
+    return FileResponse(
+        path=file_path,
+        filename=material.title,
+        media_type=media_type,
+    )
 
 
 # ── Search ────────────────────────────────────────────────────
