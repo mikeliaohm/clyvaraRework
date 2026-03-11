@@ -126,12 +126,12 @@ After registering an admin account, grant the role directly in the database:
 
 ```bash
 psql $DATABASE_URL -c "
-  INSERT INTO main.roles (name, description)
+  INSERT INTO public.roles (name, description)
     VALUES ('admin', 'Administrator')
     ON CONFLICT (name) DO NOTHING;
-  INSERT INTO main.user_roles (user_id, role_id)
+  INSERT INTO public.user_roles (user_id, role_id)
     SELECT u.id, r.id
-    FROM main.users u, main.roles r
+    FROM public.users u, public.roles r
     WHERE u.email = 'admin@example.com' AND r.name = 'admin'
     ON CONFLICT DO NOTHING;
 "

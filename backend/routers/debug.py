@@ -57,12 +57,12 @@ def ensure_tables():
         if success:
             engine = get_engine()
             inspector = inspect(engine)
-            tables_in_main = inspector.get_table_names(schema="main")
+            tables = inspector.get_table_names()
             return {
                 "success": True,
                 "message": "All tables ensured/created successfully",
-                "profiles_table_exists": "profiles" in tables_in_main,
-                "tables_in_main_schema": tables_in_main,
+                "profiles_table_exists": "profiles" in tables,
+                "tables": tables,
             }
         return {"success": False, "message": "Failed to create tables"}
     except Exception as e:

@@ -80,14 +80,9 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        # Create schemas and extensions before running migrations
-        print("Creating schemas and extensions...")
-        connection.execute(text("CREATE SCHEMA IF NOT EXISTS main;"))
-        connection.execute(text("CREATE SCHEMA IF NOT EXISTS user_data;"))
-        connection.execute(text("CREATE SCHEMA IF NOT EXISTS dashboard;"))
+        # Create extensions before running migrations
         connection.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto;"))
         connection.commit()
-        print("✓ Schemas and extensions ready")
 
         context.configure(
             connection=connection, target_metadata=target_metadata
