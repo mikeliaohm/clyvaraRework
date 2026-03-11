@@ -1,4 +1,6 @@
+import os
 import threading
+from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
@@ -16,25 +18,32 @@ router = APIRouter(tags=["materials"])
 
 ALLOWED_TYPES = ["pdf", "docx", "doc", "txt"]
 
+LOCAL_UPLOAD_DIR = Path(os.getenv("LOCAL_UPLOAD_DIR", Path(__file__).resolve().parent.parent / "uploads"))
+
 
 def _get_extension(filename: str) -> str:
     return filename.split(".")[-1].lower() if "." in filename else ""
 
 
-def _upload_to_s3(file_content: bytes, s3_key: str, content_type: str) -> Optional[str]:
-    if not s3_client:
-        return None
-    try:
-        s3_client.put_object(
-            Bucket=S3_BUCKET_NAME,
-            Key=s3_key,
-            Body=file_content,
-            ContentType=content_type or "application/octet-stream",
-        )
-        return f"s3://{S3_BUCKET_NAME}/{s3_key}"
-    except Exception as e:
-        print(f"S3 upload failed: {e}")
-        return None
+def _store_file(file_content: bytes, s3_key: str, content_type: str) -> Optional[str]:
+    """Store file to S3 if available, otherwise fall back to local filesystem."""
+    if s3_client:
+        try:
+            s3_client.put_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=s3_key,
+                Body=file_content,
+                ContentType=content_type or "application/octet-stream",
+            )
+            return f"s3://{S3_BUCKET_NAME}/{s3_key}"
+        except Exception as e:
+            print(f"S3 upload failed, falling back to local: {e}")
+
+    # Local filesystem fallback
+    local_path = LOCAL_UPLOAD_DIR / s3_key
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_bytes(file_content)
+    return str(local_path)
 
 
 # ── User file upload ──────────────────────────────────────────
@@ -56,7 +65,7 @@ async def upload_file(
 
     file_id = str(uuid4())
     s3_key = f"uploads/{current_user['user_id']}/{file_id}_{file.filename}"
-    file_path = _upload_to_s3(file_content, s3_key, file.content_type or "")
+    file_path = _store_file(file_content, s3_key, file.content_type or "")
 
     try:
         extracted_text = extract_text_from_file(file_content, file_extension)
@@ -152,7 +161,7 @@ async def upload_system_material(
 
     file_id = str(uuid4())
     s3_key = f"system-materials/{file_id}_{file.filename}"
-    file_path = _upload_to_s3(file_content, s3_key, file.content_type or "")
+    file_path = _store_file(file_content, s3_key, file.content_type or "")
 
     try:
         extracted_text = extract_text_from_file(file_content, file_extension)

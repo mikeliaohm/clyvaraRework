@@ -30,15 +30,24 @@ def extract_text_from_docx(file_content: bytes) -> str:
         raise HTTPException(status_code=400, detail=f"Error extracting DOCX text: {str(e)}")
 
 
+def _sanitize_text(text: str) -> str:
+    """Remove NUL and other control bytes that PostgreSQL text columns reject."""
+    import re
+    text = text.replace("\x00", "")
+    text = re.sub(r"[\x01-\x08\x0b\x0c\x0e-\x1f]", " ", text)
+    return text
+
+
 def extract_text_from_file(file_content: bytes, file_type: str) -> str:
     if file_type.lower() == "pdf":
-        return extract_text_from_pdf(file_content)
+        raw = extract_text_from_pdf(file_content)
     elif file_type.lower() in ["docx", "doc"]:
-        return extract_text_from_docx(file_content)
+        raw = extract_text_from_docx(file_content)
     elif file_type.lower() == "txt":
-        return file_content.decode("utf-8")
+        raw = file_content.decode("utf-8")
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {file_type}")
+    return _sanitize_text(raw)
 
 
 def generate_embeddings(text: str) -> List[float]:
