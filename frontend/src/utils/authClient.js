@@ -1,7 +1,7 @@
 // Custom authentication client to replace Supabase
 // Uses backend JWT authentication
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 class AuthClient {
   constructor() {
@@ -30,7 +30,7 @@ class AuthClient {
 
   async signup({ email, password, full_name, username, specialty, graduation_year, institution }) {
     try {
-      const response = await fetch(`${API_URL}/api/auth/register`, {
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, full_name, username, specialty, graduation_year, institution }),
@@ -50,7 +50,7 @@ class AuthClient {
 
   async login({ email, password }) {
     try {
-      const tokenResponse = await fetch(`${API_URL}/api/auth/login`, {
+      const tokenResponse = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -64,7 +64,7 @@ class AuthClient {
       const { access_token } = await tokenResponse.json();
 
       // Fetch user profile with the new token
-      const userResponse = await fetch(`${API_URL}/api/auth/me`, {
+      const userResponse = await fetch(`${API_URL}/auth/me`, {
         headers: { 'Authorization': `Bearer ${access_token}` },
       });
 
@@ -93,7 +93,7 @@ class AuthClient {
 
     try {
       // Verify token is still valid by fetching user info
-      const response = await fetch(`${API_URL}/api/auth/me`, {
+      const response = await fetch(`${API_URL}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${this.token}`,
         },
