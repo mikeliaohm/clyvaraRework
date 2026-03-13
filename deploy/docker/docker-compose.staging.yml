@@ -1,7 +1,7 @@
 services:
   backend:
     build:
-      context: .
+      context: ../..
       dockerfile: deploy/docker/backend.Dockerfile
     container_name: clyvara-backend-staging
     ports:
@@ -23,7 +23,7 @@ services:
 
   frontend:
     build:
-      context: .
+      context: ../..
       dockerfile: deploy/docker/frontend.Dockerfile
     container_name: clyvara-frontend-staging
     depends_on:
