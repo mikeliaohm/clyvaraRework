@@ -163,11 +163,6 @@ const Button = styled.button`
   }
 `;
 
-const SocialButtonsContainer = styled.div`
-  display: grid;
-  gap: 1rem;
-`;
-
 const Divider = styled.div`
   display: flex;
   align-items: center;
@@ -274,7 +269,7 @@ export default function SignupPage() {
     setMsg("");
     setIsError(false);
 
-    const { error } = await supabase.auth.signUp({ email, password, options: {data: {specialty}} });
+    const { data, error } = await supabase.auth.signUp({ email, password, specialty });
 
     setLoading(false);
     if (error) {
@@ -282,7 +277,7 @@ export default function SignupPage() {
       setMsg(error.message);
     } else {
       setIsError(false);
-      setMsg("Check your email to confirm your account before logging in.");
+      nav("/");
     }
   }
 
@@ -348,9 +343,7 @@ export default function SignupPage() {
               {loading ? "Creating account…" : "Create Account"}
             </Button>
 
-            <SocialButtonsContainer>
-              <GoogleSignInButton />
-            </SocialButtonsContainer>
+            <GoogleSignInButton />
 
             <AccountText>
               Already have an account?

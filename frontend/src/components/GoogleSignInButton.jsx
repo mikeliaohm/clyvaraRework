@@ -1,7 +1,5 @@
 import React from 'react'
 import styled from 'styled-components'
-import { useNavigate } from 'react-router-dom'
-import { supabase } from '../utils/supabaseClient'
 
 const Button = styled.button`
   background-color: white;
@@ -23,20 +21,8 @@ const Button = styled.button`
 `
 
 export default function GoogleSignInButton() {
-  const navigate = useNavigate()
-  
-  async function handleGoogleLogin() {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`
-      }
-    })
-    if (error) {
-      console.error('Error logging in with Google:', error.message)
-    } else {
-      console.log('Redirecting to Google login...', data)
-    }
+  function handleGoogleLogin() {
+    alert('Google sign-in is not available on a local server. Please use email and password.')
   }
 
   return (

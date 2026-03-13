@@ -163,11 +163,6 @@ const Button = styled.button`
   }
 `;
 
-const SocialButtonsContainer = styled.div`
-  display: grid;
-  gap: 1rem;
-`;
-
 const Divider = styled.div`
   display: flex;
   align-items: center;
@@ -301,9 +296,7 @@ export default function Login() {
               {loading ? "Signing in…" : "Log In"}
             </Button>
 
-            <SocialButtonsContainer>
-              <GoogleSignInButton />
-            </SocialButtonsContainer>
+            <GoogleSignInButton />
 
             <AccountText>
               Don't have an account?

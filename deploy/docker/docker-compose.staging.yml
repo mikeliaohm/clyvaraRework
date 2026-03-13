@@ -1,0 +1,36 @@
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/backend.Dockerfile
+    container_name: clyvara-backend-staging
+    ports:
+      - "${STAGING_BACKEND_PORT:-8030}:8000"
+    environment:
+      BACKEND_PORT: 8000
+      AUTH_MODE: ${AUTH_MODE:-local}
+      DATABASE_URL: ${DATABASE_URL:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-2}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-clyvara-uploads}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/frontend.Dockerfile
+    container_name: clyvara-frontend-staging
+    depends_on:
+      - backend
+    ports:
+      - "${STAGING_FRONTEND_PORT:-8031}:8001"
+    environment:
+      FRONTEND_PORT: 8001
+      VITE_API_URL: ${VITE_API_URL:-/api}
+      VITE_PROXY_TARGET: ${VITE_PROXY_TARGET:-http://backend:8000}
