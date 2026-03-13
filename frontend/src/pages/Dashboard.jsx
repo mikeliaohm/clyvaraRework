@@ -3,6 +3,8 @@ import styled from "styled-components";
 import ChatBot from "../components/ChatBot.jsx";
 import { supabase } from "../utils/supabaseClient";
 
+const API_URL = import.meta.env.VITE_API_URL || "/api";
+
 const WelcomeMessage = styled.div`
   text-align: center;
   padding: 16px;
@@ -280,7 +282,7 @@ export default function Dashboard() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        const response = await fetch('http://localhost:8000/api/profile/me', {
+        const response = await fetch(`${API_URL}/profile/me`, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`
           }
@@ -324,7 +326,7 @@ export default function Dashboard() {
       formData.append('file', file);
 
       // Upload to backend
-      const response = await fetch('http://localhost:8000/api/upload', {
+      const response = await fetch(`${API_URL}/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -359,7 +361,7 @@ export default function Dashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch('http://localhost:8000/api/materials', {
+      const response = await fetch(`${API_URL}/materials`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
@@ -397,7 +399,7 @@ export default function Dashboard() {
       if (!session) return;
 
       // Fetch full detail (including extracted_text)
-      const detailResp = await fetch(`http://localhost:8000/api/materials/${material.id}`, {
+      const detailResp = await fetch(`${API_URL}/materials/${material.id}`, {
         headers: { 'Authorization': `Bearer ${session.access_token}` },
       });
       if (detailResp.ok) {
@@ -406,7 +408,7 @@ export default function Dashboard() {
 
         // For PDFs with a file on disk, fetch as blob for iframe preview
         if (detail.has_file && detail.file_type === 'pdf') {
-          const fileResp = await fetch(`http://localhost:8000/api/materials/${material.id}/download`, {
+          const fileResp = await fetch(`${API_URL}/materials/${material.id}/download`, {
             headers: { 'Authorization': `Bearer ${session.access_token}` },
           });
           if (fileResp.ok) {
@@ -424,7 +426,7 @@ export default function Dashboard() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      const resp = await fetch(`http://localhost:8000/api/materials/${materialId}/download`, {
+      const resp = await fetch(`${API_URL}/materials/${materialId}/download`, {
         headers: { 'Authorization': `Bearer ${session.access_token}` },
       });
       if (!resp.ok) {
@@ -455,7 +457,7 @@ export default function Dashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch(`http://localhost:8000/api/materials/${materialId}`, {
+      const response = await fetch(`${API_URL}/materials/${materialId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
