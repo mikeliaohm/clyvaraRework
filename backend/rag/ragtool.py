@@ -4,9 +4,10 @@
 Usage (from backend/):
     python rag/ragtool.py upload mybook.pdf --title "My Book" --user-id SYSTEM
     python rag/ragtool.py search "anesthesia" --user-id SYSTEM
+    python rag/ragtool.py tree <document-uuid-or-material-id>
     python rag/ragtool.py show-chunk <chunk-id>
     python rag/ragtool.py status
-    python rag/ragtool.py reprocess <document-id>
+    python rag/ragtool.py reprocess <document-uuid-or-material-id>
 """
 
 from __future__ import annotations
@@ -37,6 +38,36 @@ from models.rag import RagDocument, IngestionRun
 def cli():
     """RAG pipeline CLI — upload, search, inspect."""
     pass
+
+
+def _resolve_document(db, identifier: str) -> "RagDocument":
+    """Look up a RagDocument by UUID or by material ID (integer)."""
+    from sqlalchemy import select
+
+    # Try as integer (material_id) first
+    try:
+        mat_id = int(identifier)
+        doc = db.execute(
+            select(RagDocument)
+            .where(RagDocument.material_id == mat_id)
+            .order_by(RagDocument.created_at.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if doc:
+            return doc
+    except ValueError:
+        pass
+
+    # Try as UUID (document_id)
+    doc = db.execute(
+        select(RagDocument).where(RagDocument.id == identifier)
+    ).scalar_one_or_none()
+
+    if doc is None:
+        click.echo(f"No document found for '{identifier}'. Use a document UUID or material ID.", err=True)
+        raise SystemExit(1)
+
+    return doc
 
 
 # ---------------------------------------------------------------------------
@@ -225,25 +256,22 @@ def status(document_id: str | None):
 # ---------------------------------------------------------------------------
 
 @cli.command()
-@click.argument("document_id")
+@click.argument("identifier")
 @click.option("--detector", default="general", type=click.Choice(["general", "medical"]))
 @click.option("--embed-model", default=None)
-def reprocess(document_id: str, detector: str, embed_model: str | None):
-    """Re-run the ingestion pipeline for an existing document."""
-    from sqlalchemy import select, delete
+def reprocess(identifier: str, detector: str, embed_model: str | None):
+    """Re-run the ingestion pipeline for an existing document.
+
+    IDENTIFIER can be a document UUID or a material ID (integer).
+    """
+    from sqlalchemy import delete
 
     Session = get_session_local()
     db = Session()
 
     try:
-        doc = db.execute(
-            select(RagDocument).where(RagDocument.id == document_id)
-        ).scalar_one_or_none()
-
-        if doc is None:
-            click.echo(f"Document {document_id} not found.", err=True)
-            raise SystemExit(1)
-
+        doc = _resolve_document(db, identifier)
+        document_id = str(doc.id)
         material_id = doc.material_id
 
         # Delete old data
@@ -264,6 +292,87 @@ def reprocess(document_id: str, detector: str, embed_model: str | None):
         click.echo(f"Error: {exc}", err=True)
         db.rollback()
         raise SystemExit(1)
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# tree
+# ---------------------------------------------------------------------------
+
+@cli.command()
+@click.argument("identifier")
+def tree(identifier: str):
+    """Show the hierarchy tree for an ingested document.
+
+    IDENTIFIER can be a document UUID or a material ID (integer).
+    """
+    Session = get_session_local()
+    db = Session()
+
+    try:
+        doc = _resolve_document(db, identifier)
+        document_id = str(doc.id)
+
+        from sqlalchemy import select
+        from models.rag import RagNode, RagChunk
+
+        nodes = db.execute(
+            select(RagNode)
+            .where(RagNode.document_id == document_id)
+            .order_by(RagNode.depth, RagNode.child_index)
+        ).scalars().all()
+
+        # Count chunks per node
+        chunk_counts: dict[str, int] = {}
+        chunks = db.execute(
+            select(RagChunk.node_id, RagChunk.id)
+            .where(RagChunk.document_id == document_id)
+        ).all()
+        for node_id, _ in chunks:
+            chunk_counts[str(node_id)] = chunk_counts.get(str(node_id), 0) + 1
+
+        # Build parent -> children map
+        children_map: dict[str | None, list] = {}
+        for node in nodes:
+            pid = str(node.parent_id) if node.parent_id else None
+            children_map.setdefault(pid, []).append(node)
+
+        # Find root
+        root = None
+        for node in nodes:
+            if node.node_type == "root":
+                root = node
+                break
+
+        if root is None:
+            click.echo("No root node found.", err=True)
+            raise SystemExit(1)
+
+        click.echo(f"{doc.title}  ({doc.page_count} pages, {len(chunks)} chunks)")
+
+        def _print_tree(node, prefix: str = "", is_last: bool = True) -> None:
+            nid = str(node.id)
+            kids = children_map.get(nid, [])
+
+            for i, child in enumerate(kids):
+                last = i == len(kids) - 1
+                connector = "└── " if last else "├── "
+                extension = "    " if last else "│   "
+
+                label = child.ordinal_label or ""
+                text = child.heading_text or ""
+                display = f"{label}. {text}" if label else text
+
+                tokens = f"{child.token_count} tok" if child.token_count else "0 tok"
+                n_chunks = chunk_counts.get(str(child.id), 0)
+                chunks_label = f", {n_chunks} chunk{'s' if n_chunks != 1 else ''}" if n_chunks else ""
+
+                click.echo(f"{prefix}{connector}{display}  ({tokens}{chunks_label})")
+                _print_tree(child, prefix + extension, last)
+
+        _print_tree(root)
+
     finally:
         db.close()
 

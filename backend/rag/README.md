@@ -17,15 +17,20 @@ python rag/ragtool.py upload ~/path/to/book.pdf \
 # Search
 python rag/ragtool.py search "query text" --user-id SYSTEM --top-k 5
 
-# Inspect a chunk
+# Show document hierarchy tree
+python rag/ragtool.py tree <document-uuid-or-material-id>
+
+# Inspect a chunk with context
 python rag/ragtool.py show-chunk <chunk-uuid>
 
 # View ingestion status
 python rag/ragtool.py status
 
 # Re-run pipeline for a document
-python rag/ragtool.py reprocess <document-uuid> --detector medical
+python rag/ragtool.py reprocess <document-uuid-or-material-id> --detector medical
 ```
+
+Note: `tree` and `reprocess` accept either a document UUID or a material ID (integer).
 
 ## Detector presets
 
