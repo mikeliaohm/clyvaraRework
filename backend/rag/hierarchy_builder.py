@@ -14,7 +14,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Optional, Protocol, runtime_checkable
 
-from services.text_preprocessing import count_tokens
+from rag.text_preprocessing import count_tokens
 
 
 # ---------------------------------------------------------------------------
@@ -138,9 +138,9 @@ _REFERENCES = re.compile(r"^(?:REFERENCES?|SUGGESTED\s+READINGS?|BIBLIOGRAPHY)",
 
 
 class MedicalTextbookDetector(GeneralDetector):
-    """Extends GeneralDetector with medical-textbook–specific patterns.
+    """Extends GeneralDetector with medical-textbook-specific patterns.
 
-    Priority order (checked first → last):
+    Priority order (checked first -> last):
       1. CLINICAL MOMENT markers
       2. REFERENCES / SUGGESTED READINGS
       3. Chapter headings
@@ -244,7 +244,7 @@ def build_hierarchy(
 ) -> list[NodeData]:
     """Scan page texts line-by-line and return a flat list of NodeData.
 
-    The returned list is ordered depth-first.  Parent–child relationships
+    The returned list is ordered depth-first.  Parent-child relationships
     are expressed via ``parent_id``.
     """
     root = NodeData(

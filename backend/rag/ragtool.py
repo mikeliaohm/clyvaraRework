@@ -1,11 +1,12 @@
+#!/usr/bin/env python
 """CLI for RAG ingestion, search, and inspection.
 
 Usage (from backend/):
-    python -m cli.ragtool upload mybook.pdf --title "My Book" --user-id SYSTEM
-    python -m cli.ragtool search "anesthesia" --user-id SYSTEM
-    python -m cli.ragtool show-chunk <chunk-id>
-    python -m cli.ragtool status
-    python -m cli.ragtool reprocess <document-id>
+    python rag/ragtool.py upload mybook.pdf --title "My Book" --user-id SYSTEM
+    python rag/ragtool.py search "anesthesia" --user-id SYSTEM
+    python rag/ragtool.py show-chunk <chunk-id>
+    python rag/ragtool.py status
+    python rag/ragtool.py reprocess <document-id>
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from pathlib import Path
 import click
 
 # Ensure the backend directory is on sys.path so imports work when invoked
-# as `python -m cli.ragtool` from the backend/ directory.
+# as `python rag/ragtool.py` from the backend/ directory.
 _backend_dir = str(Path(__file__).resolve().parent.parent)
 if _backend_dir not in sys.path:
     sys.path.insert(0, _backend_dir)
@@ -26,9 +27,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from database import get_session_local, Material
-from services.embedder import get_embedder
-from services.hierarchy_builder import get_detector
-from services.rag_pipeline import ingest_document, search_chunks, get_chunk_with_context
+from rag.embedder import get_embedder
+from rag.hierarchy_builder import get_detector
+from rag.pipeline import ingest_document, search_chunks, get_chunk_with_context
 from models.rag import RagDocument, IngestionRun
 
 
@@ -125,7 +126,7 @@ def search(query: str, user_id: str, top_k: int, embed_model: str | None):
             click.echo(f"\n--- Result {i} (score: {score:.4f}) ---")
             click.echo(f"Document: {row.get('document_title', '?')}")
             click.echo(f"Path:     {row.get('heading_path', '?')}")
-            click.echo(f"Pages:    {row.get('page_start', '?')}–{row.get('page_end', '?')}")
+            click.echo(f"Pages:    {row.get('page_start', '?')}-{row.get('page_end', '?')}")
             click.echo(f"Tokens:   {row.get('token_count', '?')}")
             click.echo(f"Kind:     {row.get('chunk_kind', '?')}")
             click.echo(f"\n{row.get('content', '')[:500]}")
@@ -158,7 +159,7 @@ def show_chunk(chunk_id: str):
         click.echo(f"Path:       {chunk['heading_path']}")
         click.echo(f"Kind:       {chunk['chunk_kind']}")
         click.echo(f"Index:      {chunk['chunk_index']}")
-        click.echo(f"Pages:      {chunk['page_start']}–{chunk['page_end']}")
+        click.echo(f"Pages:      {chunk['page_start']}-{chunk['page_end']}")
         click.echo(f"Tokens:     {chunk['token_count']}")
         click.echo(f"Node type:  {node.get('node_type', '?')}")
         click.echo(f"Node depth: {node.get('depth', '?')}")

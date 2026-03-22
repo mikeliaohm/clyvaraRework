@@ -3,12 +3,12 @@
 Traverses a tree of NodeData objects and produces RagChunk-compatible
 data containers.  Respects the chunking policy from the RAG architecture:
 
-  - Target: 250–600 tokens
+  - Target: 250-600 tokens
   - Soft max: 800 tokens
   - Hard max: 1000 tokens
-  - Overlap: 40–80 tokens (same parent only)
-  - Clinical moments → standalone chunk
-  - References → excluded from embedding
+  - Overlap: 40-80 tokens (same parent only)
+  - Clinical moments -> standalone chunk
+  - References -> excluded from embedding
   - Never merge across section boundaries
 """
 
@@ -19,8 +19,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 
-from services.hierarchy_builder import NodeData
-from services.text_preprocessing import count_tokens
+from rag.hierarchy_builder import NodeData
+from rag.text_preprocessing import count_tokens
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ def merge_small_chunks(
 
     Rules:
       - Only merge if both are "semantic" kind
-      - Only merge if combined token count ≤ max_merged
+      - Only merge if combined token count <= max_merged
       - Never merge clinical_moment chunks
     """
     if not chunks:
@@ -204,7 +204,7 @@ def chunk_document(
     Returns:
         Ordered list of ChunkData ready for persistence.
     """
-    # Build a lookup from id → NodeData
+    # Build a lookup from id -> NodeData
     node_map = {n.id: n for n in nodes}
 
     chunks: list[ChunkData] = []
@@ -221,7 +221,7 @@ def chunk_document(
         if node.node_type == "reference":
             continue
 
-        # Clinical moments → standalone chunk
+        # Clinical moments -> standalone chunk
         if node.node_type == "clinical_moment":
             cd = ChunkData(
                 document_id=document_id,
@@ -238,7 +238,7 @@ def chunk_document(
             chunks.append(cd)
             continue
 
-        # Regular node — split if needed
+        # Regular node -- split if needed
         pieces = split_if_needed(text)
 
         for piece in pieces:

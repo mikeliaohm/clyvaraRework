@@ -15,11 +15,11 @@ from sqlalchemy.orm import Session
 
 from models.rag import IngestionRun, RagChunk, RagDocument, RagNode
 from database import Material
-from services.embedder import Embedder
-from services.hierarchy_builder import HeadingDetector, NodeData, build_hierarchy
-from services.chunker import ChunkData, chunk_document
-from services.text_preprocessing import clean_pages, count_tokens
-from utils.rag import extract_pages_from_pdf, extract_text_from_docx
+from rag.embedder import Embedder
+from rag.hierarchy_builder import HeadingDetector, NodeData, build_hierarchy
+from rag.chunker import ChunkData, chunk_document
+from rag.text_preprocessing import clean_pages, count_tokens
+from rag.extraction import extract_pages_from_pdf, extract_text_from_docx
 
 
 # ---------------------------------------------------------------------------
@@ -63,11 +63,11 @@ def ingest_document(
     """Run the full ingestion pipeline for a material.
 
     Stages:
-      1. Extract   – read file, get per-page text
-      2. Preprocess – clean text
-      3. Hierarchy  – build node tree, persist rag_nodes
-      4. Chunk      – produce chunks, persist rag_chunks (no embeddings yet)
-      5. Embed      – batch-embed, update rag_chunks.embedding
+      1. Extract   - read file, get per-page text
+      2. Preprocess - clean text
+      3. Hierarchy  - build node tree, persist rag_nodes
+      4. Chunk      - produce chunks, persist rag_chunks (no embeddings yet)
+      5. Embed      - batch-embed, update rag_chunks.embedding
 
     Returns the RagDocument (status = 'ready' on success, 'failed' on error).
     """
@@ -98,7 +98,7 @@ def ingest_document(
     doc_id = str(doc.id)
 
     try:
-        # ── Stage 1: Extract ──────────────────────────────────────
+        # -- Stage 1: Extract ---------------------------------------
         _log_stage(db, doc_id, "extract", "running")
         _update_doc_status(db, doc, "extracting")
 
@@ -116,7 +116,7 @@ def ingest_document(
         doc.page_count = len(page_texts)
         _log_stage(db, doc_id, "extract", "done", f"{len(page_texts)} pages")
 
-        # ── Stage 2: Preprocess ───────────────────────────────────
+        # -- Stage 2: Preprocess ------------------------------------
         _log_stage(db, doc_id, "preprocess", "running")
         _update_doc_status(db, doc, "building_hierarchy")
 
@@ -124,7 +124,7 @@ def ingest_document(
 
         _log_stage(db, doc_id, "preprocess", "done")
 
-        # ── Stage 3: Hierarchy ────────────────────────────────────
+        # -- Stage 3: Hierarchy -------------------------------------
         _log_stage(db, doc_id, "hierarchy", "running")
 
         node_datas = build_hierarchy(cleaned_pages, doc_id, detector)
@@ -158,7 +158,7 @@ def ingest_document(
         db.flush()
         _log_stage(db, doc_id, "hierarchy", "done", f"{len(node_datas)} nodes")
 
-        # ── Stage 4: Chunk ────────────────────────────────────────
+        # -- Stage 4: Chunk -----------------------------------------
         _log_stage(db, doc_id, "chunk", "running")
         _update_doc_status(db, doc, "chunking")
 
@@ -202,7 +202,7 @@ def ingest_document(
 
         _log_stage(db, doc_id, "chunk", "done", f"{len(chunk_datas)} chunks")
 
-        # ── Stage 5: Embed ────────────────────────────────────────
+        # -- Stage 5: Embed -----------------------------------------
         _log_stage(db, doc_id, "embed", "running")
         _update_doc_status(db, doc, "embedding")
 
@@ -221,7 +221,7 @@ def ingest_document(
         db.flush()
         _log_stage(db, doc_id, "embed", "done", f"{len(all_embeddings)} embeddings")
 
-        # ── Done ──────────────────────────────────────────────────
+        # -- Done ---------------------------------------------------
         _update_doc_status(db, doc, "ready")
         db.commit()
         return doc
