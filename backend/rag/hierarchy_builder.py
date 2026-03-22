@@ -75,7 +75,7 @@ class HeadingDetector(Protocol):
 
 # Precompiled patterns
 _MD_HEADING = re.compile(r"^(#{1,4})\s+(.+)")
-_NUMBERED_HEADING = re.compile(r"^(\d+(?:\.\d+)*)\.\s+(.+)")
+_NUMBERED_HEADING = re.compile(r"^(\d+(?:\.\d+)*)\.?\s+([A-Z].+)")
 _ALL_CAPS_HEADING = re.compile(r"^([A-Z][A-Z\s]{4,})$")
 
 

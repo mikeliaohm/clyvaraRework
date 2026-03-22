@@ -209,8 +209,15 @@ def chunk_document(
 
     chunks: list[ChunkData] = []
 
+    # If root is the only node with text (no headings detected), chunk it
+    # instead of skipping. Only skip root when children carry the content.
+    has_children_with_text = any(
+        n.node_type != "root" and (n.cleaned_text or n.raw_text or "").strip()
+        for n in nodes
+    )
+
     for node in nodes:
-        if node.node_type == "root":
+        if node.node_type == "root" and has_children_with_text:
             continue
 
         text = (node.cleaned_text or node.raw_text or "").strip()
