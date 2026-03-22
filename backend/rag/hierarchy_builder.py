@@ -99,9 +99,9 @@ class GeneralDetector:
                 depth=level,
             )
 
-        # Numbered headings: 1. Title, 1.1. Title
+        # Numbered headings: 1. Title, 1.1. Title (short lines only)
         m = _NUMBERED_HEADING.match(stripped)
-        if m:
+        if m and len(stripped) <= 120:
             parts = m.group(1).split(".")
             depth = len(parts)
             types = {1: "chapter", 2: "section", 3: "subsection"}
@@ -193,9 +193,9 @@ class MedicalTextbookDetector(GeneralDetector):
                 depth=2,
             )
 
-        # Letter subsection
+        # Letter subsection (short lines only)
         m = _LETTER_SUBSECTION.match(stripped)
-        if m:
+        if m and len(stripped) <= 120:
             return HeadingMatch(
                 node_type="subsection",
                 ordinal_label=m.group(1),
@@ -203,9 +203,9 @@ class MedicalTextbookDetector(GeneralDetector):
                 depth=3,
             )
 
-        # Numbered item
+        # Numbered item (short lines only — avoids matching body text)
         m = _NUMBERED_ITEM.match(stripped)
-        if m:
+        if m and len(stripped) <= 120:
             return HeadingMatch(
                 node_type="item",
                 ordinal_label=m.group(1),
