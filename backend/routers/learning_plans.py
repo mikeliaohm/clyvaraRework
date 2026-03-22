@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from config import openai_client, SYSTEM_USER_ID
 from database import get_db, LearningPlan, LearningPlanProgress, Material, VectorIndexEntry
 from deps import get_current_user
-from utils.rag import generate_embeddings
+from rag.extraction import generate_embeddings
 
 router = APIRouter(tags=["learning-plans"])
 

@@ -1,5 +1,5 @@
 from routers.care_plans import build_care_plan_text
-from utils.rag import chunk_text
+from rag.extraction import chunk_text
 
 
 def test_build_care_plan_text_includes_core_fields_and_labs():

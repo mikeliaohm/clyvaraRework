@@ -13,7 +13,7 @@ from config import openai_client, s3_client, S3_BUCKET_NAME, SYSTEM_USER_ID
 from database import get_db, Material, VectorIndexEntry
 from deps import get_current_user, _enforce_admin_access
 from material_cache import cache_text, get_cached_text, invalidate_cache, invalidate_vector_cache
-from utils.rag import chunk_text, extract_text_from_file, generate_embeddings
+from rag.extraction import chunk_text, extract_text_from_file, generate_embeddings
 
 router = APIRouter(tags=["materials"])
 
