@@ -63,3 +63,8 @@ Thumbs.db
 # --------------------
 backend/.material_cache/
 backend/uploads/
+
+# --------------------
+# Workspace files (VSCode)
+# --------------------
+*.code-workspace

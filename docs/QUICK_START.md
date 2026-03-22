@@ -41,26 +41,9 @@ cd ..
 
 ---
 
-## 4. Local PostgreSQL database
+## 4. Environment variables
 
-```bash
-# Create the database
-psql postgres -c "CREATE DATABASE clyvara_dev;"
-```
-
-Then apply the schema migrations:
-
-```bash
-source .venv/bin/activate
-cd backend
-python create_migration.py upgrade
-```
-
----
-
-## 5. Environment variables
-
-Create `backend/.env` (or repo-root `.env`):
+Create `.env` (at repo-root) before running migrations:
 
 ```env
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/clyvara_dev
@@ -91,6 +74,26 @@ Create `frontend/.env`:
 ```env
 VITE_API_URL=http://localhost:8000
 ```
+
+---
+
+## 5. Local PostgreSQL database
+
+```bash
+# Create the database
+psql postgres -c "CREATE DATABASE clyvara_dev;"
+```
+
+Then apply the schema migrations:
+
+```bash
+source .venv/bin/activate
+cd backend
+python create_migration.py upgrade
+```
+
+If the first migration failed before this fix, rerun `python create_migration.py upgrade`.
+If your database was left in a partial state, drop and recreate `clyvara_dev` first.
 
 ---
 
