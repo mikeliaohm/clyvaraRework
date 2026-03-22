@@ -412,6 +412,7 @@ def init_db():
         engine = get_engine()
         with engine.begin() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto;"))
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
 
         Base.metadata.create_all(bind=engine)
         print("Tables created successfully!")
@@ -431,6 +432,12 @@ def create_all_tables():
     except Exception as e:
         print(f"Error creating tables: {e}")
         return False
+
+
+# ---------------------------------------------------------------------------
+# Import RAG models so they are registered on Base.metadata
+# ---------------------------------------------------------------------------
+from models.rag import RagDocument, RagNode, RagChunk, IngestionRun  # noqa: F401, E402
 
 
 if __name__ == "__main__":

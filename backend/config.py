@@ -25,13 +25,18 @@ else:
     openai_client = None
     print("✗ WARNING: OpenAI client not initialized (missing OPENAI_API_KEY)")
 
+# ── Embedding ────────────────────────────────────────────────
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "384"))
+
 # ── AWS S3 ───────────────────────────────────────────────────
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "clyvara-uploads")
 
-if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
+_aws_placeholder = {"your_aws_access_key_id", "your_aws_secret_access_key", ""}
+if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_ACCESS_KEY_ID not in _aws_placeholder:
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=AWS_ACCESS_KEY_ID,

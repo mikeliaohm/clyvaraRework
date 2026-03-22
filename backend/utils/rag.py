@@ -8,6 +8,15 @@ from fastapi import HTTPException
 from config import openai_client
 
 
+def extract_pages_from_pdf(file_content: bytes) -> list[str]:
+    """Return a list of per-page text strings extracted from a PDF."""
+    try:
+        pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
+        return [page.extract_text() or "" for page in pdf_reader.pages]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error extracting PDF pages: {str(e)}")
+
+
 def extract_text_from_pdf(file_content: bytes) -> str:
     try:
         pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
