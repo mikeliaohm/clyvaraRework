@@ -79,9 +79,14 @@ class OpenAIEmbedder:
 
 _DEFAULT_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 
+_embedder_cache: dict[str, Embedder] = {}
+
 
 def get_embedder(model_name: str | None = None) -> Embedder:
-    """Return an Embedder instance for the given model name.
+    """Return a cached Embedder instance for the given model name.
+
+    The instance is created once and reused for the lifetime of the process,
+    avoiding the ~6s cold-start cost of loading a local model on every call.
 
     Recognised prefixes / names:
       - "text-embedding-*"  → OpenAIEmbedder
@@ -89,6 +94,10 @@ def get_embedder(model_name: str | None = None) -> Embedder:
     """
     name = model_name or _DEFAULT_MODEL
 
-    if name.startswith("text-embedding-"):
-        return OpenAIEmbedder(model_name=name)
-    return LocalEmbedder(model_name=name)
+    if name not in _embedder_cache:
+        if name.startswith("text-embedding-"):
+            _embedder_cache[name] = OpenAIEmbedder(model_name=name)
+        else:
+            _embedder_cache[name] = LocalEmbedder(model_name=name)
+
+    return _embedder_cache[name]
