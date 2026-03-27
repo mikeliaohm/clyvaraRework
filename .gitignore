@@ -59,6 +59,12 @@ Thumbs.db
 *.swo
 
 # --------------------
-# Application Cache
+# Application Cache & Uploads
 # --------------------
 backend/.material_cache/
+backend/uploads/
+
+# --------------------
+# Workspace files (VSCode)
+# --------------------
+*.code-workspace

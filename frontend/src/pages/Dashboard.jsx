@@ -3,6 +3,8 @@ import styled from "styled-components";
 import ChatBot from "../components/ChatBot.jsx";
 import { supabase } from "../utils/supabaseClient";
 
+const API_URL = import.meta.env.VITE_API_URL || "/api";
+
 const WelcomeMessage = styled.div`
   text-align: center;
   padding: 16px;
@@ -203,9 +205,9 @@ const ModalContent = styled.div`
   background: white;
   padding: 24px;
   border-radius: 12px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
+  width: 95%;
+  max-width: 1400px;
+  max-height: 90vh;
   overflow-y: auto;
   color: #333;
 `;
@@ -220,7 +222,7 @@ const ParsedContent = styled.div`
   padding: 20px;
   border-radius: 8px;
   margin: 16px 0;
-  max-height: 400px;
+  max-height: 75vh;
   overflow-y: auto;
   font-size: 14px;
   line-height: 1.6;
@@ -264,6 +266,7 @@ export default function Dashboard() {
   const [materials, setMaterials] = useState([]);
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [showExpandedView, setShowExpandedView] = useState(false);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef();
   const [userEmail, setUserEmail] = useState(null);
@@ -279,7 +282,7 @@ export default function Dashboard() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        const response = await fetch('http://localhost:8000/api/profile/me', {
+        const response = await fetch(`${API_URL}/profile/me`, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`
           }
@@ -323,7 +326,7 @@ export default function Dashboard() {
       formData.append('file', file);
 
       // Upload to backend
-      const response = await fetch('http://localhost:8000/api/upload', {
+      const response = await fetch(`${API_URL}/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -358,7 +361,7 @@ export default function Dashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch('http://localhost:8000/api/materials', {
+      const response = await fetch(`${API_URL}/materials`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`
         }
@@ -381,15 +384,67 @@ export default function Dashboard() {
     fileInputRef.current?.click();
   };
 
-  const handleStartMaterial = (material) => {
-    console.log('Starting material:', material);
-    console.log('Extracted text length:', material.extracted_text?.length || 0);
-    console.log('First 200 chars of extracted text:', material.extracted_text?.substring(0, 200) || 'No text');
+  const handleStartMaterial = async (material) => {
     try {
+      // Clean up previous blob URL
+      if (previewBlobUrl) {
+        URL.revokeObjectURL(previewBlobUrl);
+        setPreviewBlobUrl(null);
+      }
+
       setSelectedMaterial(material);
       setShowExpandedView(true);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Fetch full detail (including extracted_text)
+      const detailResp = await fetch(`${API_URL}/materials/${material.id}`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+      if (detailResp.ok) {
+        const detail = await detailResp.json();
+        setSelectedMaterial(prev => ({ ...prev, ...detail }));
+
+        // For PDFs with a file on disk, fetch as blob for iframe preview
+        if (detail.has_file && detail.file_type === 'pdf') {
+          const fileResp = await fetch(`${API_URL}/materials/${material.id}/download`, {
+            headers: { 'Authorization': `Bearer ${session.access_token}` },
+          });
+          if (fileResp.ok) {
+            const blob = await fileResp.blob();
+            setPreviewBlobUrl(URL.createObjectURL(blob));
+          }
+        }
+      }
     } catch (error) {
       console.error('Error opening material:', error);
+    }
+  };
+
+  const handleDownloadMaterial = async (materialId) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const resp = await fetch(`${API_URL}/materials/${materialId}/download`, {
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        alert(err.detail || 'Download failed');
+        return;
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = selectedMaterial?.title || 'download';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download error:', error);
     }
   };
 
@@ -402,7 +457,7 @@ export default function Dashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch(`http://localhost:8000/api/materials/${materialId}`, {
+      const response = await fetch(`${API_URL}/materials/${materialId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.access_token}`
@@ -523,51 +578,82 @@ export default function Dashboard() {
       <ModalOverlay $show={showExpandedView}>
         <ModalContent>
           <ModalTitle>{selectedMaterial?.title || 'Loading...'}</ModalTitle>
-         
-          
-          <h4>Content Preview:</h4>
-<ParsedContent>
-  {selectedMaterial && (() => {
-    // TEMP: log what we actually have
-    console.log("selectedMaterial in modal:", selectedMaterial);
 
-    // Try to grab ANY reasonable URL field
-    const fileUrl =
-      selectedMaterial.file_url ||
-      selectedMaterial.public_url ||
-      selectedMaterial.url;
+          <ParsedContent>
+            {selectedMaterial && (() => {
+              // PDF files: render inline via iframe using blob URL
+              if (previewBlobUrl && selectedMaterial.file_type === 'pdf') {
+                return (
+                  <iframe
+                    src={previewBlobUrl}
+                    title={selectedMaterial.title || "Material preview"}
+                    style={{
+                      width: "100%",
+                      height: "70vh",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "8px",
+                      background: "#ffffff",
+                    }}
+                  />
+                );
+              }
 
-    if (fileUrl) {
-      return (
-        <iframe
-          src={fileUrl}
-          title={selectedMaterial.title || "Material preview"}
-          style={{
-            width: "100%",
-            height: "70vh",
-            border: "1px solid #e5e7eb",
-            borderRadius: "8px",
-            background: "#ffffff",
-          }}
-        />
-      );
-    }
+              // Non-PDF or no file: show extracted text
+              if (selectedMaterial.extracted_text) {
+                return (
+                  <pre style={{
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    maxHeight: "70vh",
+                    overflow: "auto",
+                    padding: "16px",
+                    background: "#f9fafb",
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                    fontSize: "14px",
+                    lineHeight: "1.6",
+                  }}>
+                    {selectedMaterial.extracted_text}
+                  </pre>
+                );
+              }
 
-    // Fallback if we truly have no URL on this object
-    return (
-      <p style={{ color: "#6b7280", fontStyle: "italic", margin: 0 }}>
-        We don’t have a preview URL for this file yet, but it is still processed
-        for quizzes and the chatbot.
-      </p>
-    );
-  })()}
-</ParsedContent>
+              return (
+                <p style={{ color: "#6b7280", fontStyle: "italic", margin: 0 }}>
+                  Loading content...
+                </p>
+              );
+            })()}
+          </ParsedContent>
 
           <ModalButtons>
-            <ActionButton 
-              onClick={() => setShowExpandedView(false)}
-              style={{ 
-                backgroundColor: '#4A90E2', 
+            {selectedMaterial?.has_file && (
+              <ActionButton
+                onClick={() => handleDownloadMaterial(selectedMaterial.id)}
+                style={{
+                  backgroundColor: '#10B981',
+                  color: 'white',
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  marginRight: '8px',
+                }}
+              >
+                Download
+              </ActionButton>
+            )}
+            <ActionButton
+              onClick={() => {
+                setShowExpandedView(false);
+                if (previewBlobUrl) {
+                  URL.revokeObjectURL(previewBlobUrl);
+                  setPreviewBlobUrl(null);
+                }
+              }}
+              style={{
+                backgroundColor: '#4A90E2',
                 color: 'white',
                 padding: '10px 20px',
                 border: 'none',
