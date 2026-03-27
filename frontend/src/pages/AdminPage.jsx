@@ -504,6 +504,9 @@ export default function AdminPage() {
   const [previewModal, setPreviewModal] = useState(null);
   const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
 
+  // RAG result chunk modal
+  const [ragChunkModal, setRagChunkModal] = useState(null);
+
   const tabs = [
     { id: "docs",      label: "Documents",    icon: FileText },
     { id: "rag",       label: "RAG Test",     icon: Search },
@@ -923,14 +926,23 @@ export default function AdminPage() {
               {r.heading_path && (
                 <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{r.heading_path}</div>
               )}
-              <ResultContent>
-                {r.content_display ? renderMarkdown(r.content_display) : r.content}
+              <ResultContent style={{
+                maxHeight: 72, overflow: "hidden",
+                WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+                maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+              }}>
+                {(r.content || "").slice(0, 300)}
               </ResultContent>
-              <ResultMeta>
-                {r.chunk_kind && <span>Kind: {r.chunk_kind}</span>}
-                {r.page_start != null && <span>Pages: {r.page_start}{r.page_end && r.page_end !== r.page_start ? `-${r.page_end}` : ''}</span>}
-                {r.token_count && <span>Tokens: {r.token_count}</span>}
-              </ResultMeta>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                <ResultMeta style={{ marginTop: 0 }}>
+                  {r.chunk_kind && <span>Kind: {r.chunk_kind}</span>}
+                  {r.page_start != null && <span>Pages: {r.page_start}{r.page_end && r.page_end !== r.page_start ? `-${r.page_end}` : ''}</span>}
+                  {r.token_count && <span>Tokens: {r.token_count}</span>}
+                </ResultMeta>
+                <IconButton onClick={() => setRagChunkModal(r)} style={{ fontSize: 12 }}>
+                  <Eye size={13} /> View full chunk
+                </IconButton>
+              </div>
             </ResultCard>
           ))}
           {searchResults.results?.length === 0 && (
@@ -1092,6 +1104,40 @@ export default function AdminPage() {
                   </div>
                 </>
               )}
+            </ModalBody>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* ── RAG Chunk Modal ── */}
+      {ragChunkModal && (
+        <ModalOverlay onClick={() => setRagChunkModal(null)}>
+          <ModalContent onClick={(e) => e.stopPropagation()} style={{ maxWidth: 800 }}>
+            <ModalHeader>
+              <div>
+                <ModalTitle>{ragChunkModal.document_title || "Chunk Detail"}</ModalTitle>
+                {ragChunkModal.heading_path && (
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{ragChunkModal.heading_path}</div>
+                )}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <ScoreBadge $score={ragChunkModal.score}>
+                  {(ragChunkModal.score * 100).toFixed(1)}% match
+                </ScoreBadge>
+                <CloseButton onClick={() => setRagChunkModal(null)}><X size={18} /></CloseButton>
+              </div>
+            </ModalHeader>
+            <ModalBody style={{ overflow: "auto" }}>
+              <ResultMeta style={{ marginBottom: 12 }}>
+                {ragChunkModal.chunk_kind && <span>Kind: {ragChunkModal.chunk_kind}</span>}
+                {ragChunkModal.page_start != null && <span>Pages: {ragChunkModal.page_start}{ragChunkModal.page_end && ragChunkModal.page_end !== ragChunkModal.page_start ? `-${ragChunkModal.page_end}` : ''}</span>}
+                {ragChunkModal.token_count && <span>Tokens: {ragChunkModal.token_count}</span>}
+              </ResultMeta>
+              <div style={{ fontSize: 14, lineHeight: 1.7, color: "#374151" }}>
+                {ragChunkModal.content_display
+                  ? renderMarkdown(ragChunkModal.content_display)
+                  : <pre style={{ whiteSpace: "pre-wrap", margin: 0, fontFamily: "inherit" }}>{ragChunkModal.content}</pre>}
+              </div>
             </ModalBody>
           </ModalContent>
         </ModalOverlay>

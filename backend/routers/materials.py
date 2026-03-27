@@ -49,11 +49,13 @@ def _store_file(file_content: bytes, s3_key: str, content_type: str) -> Optional
 
 def _run_rag_pipeline(material_id: int) -> None:
     """Run the new RAG pipeline for a material in a background thread."""
+    import time as _time
     from database import get_session_local
     from rag.embedder import get_embedder
     from rag.pipeline import ingest_document
     from rag.hierarchy_builder import GeneralDetector
 
+    t0 = _time.perf_counter()
     bg_db = get_session_local()()
     try:
         embedder = get_embedder()
@@ -66,7 +68,8 @@ def _run_rag_pipeline(material_id: int) -> None:
             bg_material.processing_progress = 100
             bg_material.processed_at = func.now()
             bg_db.commit()
-            print(f"✓ RAG pipeline complete for material {material_id}")
+            elapsed = _time.perf_counter() - t0
+            print(f"✓ RAG pipeline complete for material {material_id} ({elapsed:.1f}s)")
     except Exception as e:
         try:
             m = bg_db.query(Material).filter(Material.id == material_id).first()
@@ -76,7 +79,8 @@ def _run_rag_pipeline(material_id: int) -> None:
                 bg_db.commit()
         except Exception:
             pass
-        print(f"✗ RAG pipeline error for material {material_id}: {e}")
+        elapsed = _time.perf_counter() - t0
+        print(f"✗ RAG pipeline error for material {material_id} ({elapsed:.1f}s): {e}")
     finally:
         bg_db.close()
 
