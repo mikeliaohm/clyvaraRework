@@ -1,91 +1,122 @@
-import React, { useState } from "react";
+import React from "react";
 import styled from "styled-components";
 import { useNavigate, useLocation } from "react-router-dom";
+import {
+  LayoutDashboard,
+  BookOpen,
+  ClipboardList,
+  GraduationCap,
+  User,
+  Shield,
+  ChevronLeft,
+  Menu,
+} from "lucide-react";
 import clyvaralogo from "../assets/clyvaranewlogo.svg";
 
 const SidebarWrap = styled.aside`
   background: #20359A;
   color: white;
-  padding: 24px ${p => p.$collapsed ? '12px' : '16px'};
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   position: relative;
-  transition: padding 0.3s ease;
+  transition: all 0.25s ease;
+  overflow: hidden;
+`;
+
+const TopSection = styled.div`
+  display: flex;
+  flex-direction: column;
 `;
 
 const Logo = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 500;
-  font-family: 'Rethink Sans';
-  font-size: 30px;
-  white-space: nowrap;
-  color: #E7A0CC;
-  cursor: pointer; /* 👈 added */
+  padding: ${p => p.$collapsed ? '16px 0' : '16px 20px'};
+  justify-content: ${p => p.$collapsed ? 'center' : 'flex-start'};
+  cursor: pointer;
   user-select: none;
-
-  &:hover {
-    opacity: 0.9;
-  }
+  &:hover { opacity: 0.9; }
 `;
 
 const LogoImg = styled.img`
-  width: 50px;
-  height: 50px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
   flex-shrink: 0;
 `;
 
 const LogoText = styled.span`
+  font-family: 'Rethink Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: #E7A0CC;
   opacity: ${p => p.$collapsed ? 0 : 1};
-  visibility: ${p => p.$collapsed ? 'hidden' : 'visible'};
-  transition: all 0.3s ease;
+  width: ${p => p.$collapsed ? 0 : 'auto'};
+  overflow: hidden;
+  transition: opacity 0.25s ease;
 `;
 
-const Nav = styled.nav`
+const Divider = styled.hr`
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  margin: 0 ${p => p.$collapsed ? '8px' : '16px'};
+`;
+
+const NavSection = styled.nav`
   display: flex;
   flex-direction: column;
-  align: center;
-  gap: 24px;
-  margin-top: 24px;
+  gap: 2px;
+  padding: 8px;
 `;
 
-const NavItem = styled.div`
+const SectionLabel = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.4);
+  padding: ${p => p.$collapsed ? '12px 0 4px' : '12px 12px 4px'};
+  text-align: ${p => p.$collapsed ? 'center' : 'left'};
+  opacity: ${p => p.$collapsed ? 0 : 1};
+  height: ${p => p.$collapsed ? 0 : 'auto'};
+  overflow: hidden;
+  transition: opacity 0.25s ease;
+`;
+
+const NavItem = styled.button`
   all: unset;
-  flex-direction: column;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 30px;
-  justify-content: center;
-  font-family: 'generak sans', sans-serif;
+  padding: ${p => p.$collapsed ? '10px 0' : '10px 12px'};
+  justify-content: ${p => p.$collapsed ? 'center' : 'flex-start'};
+  border-radius: 8px;
   cursor: pointer;
-  background: ${p => (p.$active ? "rgba(255,255,255,.2)" : "transparent")};
-  white-space: nowrap;
-  transition: background 0.2s ease;
-  
-  &:hover {
-    background: rgba(255, 255, 255, 0.15);
-  }
-  &:focus {
-    outline: none;
-  }
-`;
+  font-family: 'General Sans', sans-serif;
+  font-size: 14px;
+  font-weight: ${p => p.$active ? 600 : 400};
+  color: ${p => p.$active ? '#fff' : 'rgba(255,255,255,0.7)'};
+  background: ${p => p.$active ? 'rgba(255,255,255,0.15)' : 'transparent'};
+  transition: all 0.15s ease;
 
-const NavIcon = styled.img`
-  width: 30px;
-  height: 30px;
-  object-fit: contain;
-  display: block;
+  &:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+  }
 `;
 
 const NavText = styled.span`
   opacity: ${p => p.$collapsed ? 0 : 1};
-  visibility: ${p => p.$collapsed ? 'hidden' : 'visible'};
-  transition: all 0.3s ease;
-  font-size: 20px;
+  width: ${p => p.$collapsed ? 0 : 'auto'};
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.25s ease;
+`;
+
+const BottomSection = styled.div`
+  padding: 8px;
 `;
 
 const ToggleButton = styled.button`
@@ -93,97 +124,101 @@ const ToggleButton = styled.button`
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  font-weight: 600;
+  padding: ${p => p.$collapsed ? '10px 0' : '10px 12px'};
+  justify-content: ${p => p.$collapsed ? 'center' : 'flex-start'};
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 8px;
   cursor: pointer;
-  background: transparent;
-  white-space: nowrap;
-  margin-top: ${p => p.$collapsed ? '0' : '24px'};
-  transition: background 0.2s ease;
-  
+  color: rgba(255,255,255,0.5);
+  transition: all 0.15s ease;
+
   &:hover {
-    background: rgba(255, 255, 255, 0.15);
-  }
-  &:focus {
-    outline: none;
+    background: rgba(255,255,255,0.1);
+    color: #fff;
   }
 `;
 
-const ToggleIcon = styled.svg`
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-`;
-
-const ToggleText = styled.span`
-  opacity: ${p => p.$collapsed ? 0 : 1};
-  visibility: ${p => p.$collapsed ? 'hidden' : 'visible'};
-  transition: all 0.3s ease;
-  font-size: 20px;
-`;
-
-export default function DashboardSidebar({ collapsed, onToggle }) {
+export default function DashboardSidebar({ collapsed, onToggle, isAdmin }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = [
-    { label: "Account",       icon: "/src/assets/account.png",      path: "/account" },
-    { label: "Dashboard",     icon: "/src/assets/dashboard.png",    path: "/dashboard" },
-    { label: "Learning Plan", icon: "/src/assets/learningplan.png", path: "/learningplan" },
-    { label: "Care Plan",     icon: "/src/assets/careplan.png",     path: "/careplan" },
+  const mainNav = [
+    { label: "Dashboard",     icon: LayoutDashboard, path: "/dashboard" },
+    { label: "Study",         icon: GraduationCap,   path: "/study" },
+    { label: "Learning Plan", icon: BookOpen,         path: "/learningplan" },
+    { label: "Care Plan",     icon: ClipboardList,    path: "/careplan" },
   ];
 
+  const adminNav = [
+    { label: "Admin Panel",   icon: Shield,          path: "/admin" },
+  ];
+
+  const isActive = (path) => {
+    if (path === "/dashboard") return location.pathname === path;
+    return location.pathname.startsWith(path);
+  };
+
   return (
-    <SidebarWrap $collapsed={collapsed}>
-      <div>
-        {/* Logo → now clickable */}
-        <Logo onClick={() => navigate("/dashboard")}>
-          <LogoImg src={clyvaralogo} alt="Clyvara logo" />
+    <SidebarWrap>
+      <TopSection>
+        <Logo $collapsed={collapsed} onClick={() => navigate("/dashboard")}>
+          <LogoImg src={clyvaralogo} alt="Clyvara" />
           <LogoText $collapsed={collapsed}>Clyvara</LogoText>
         </Logo>
 
-        {/* Nav items */}
-        {!collapsed && (
-          <Nav>
-            {navItems.map(({ label, icon, path }) => (
-              <NavItem
-                key={label}
-                $active={location.pathname === path}
-                onClick={() => navigate(path)}
-              >
-                <NavIcon
-                  src={icon}
-                  alt=""
-                  onError={(e) => (e.target.style.display = "none")}
-                />
-                <NavText $collapsed={collapsed}>{label}</NavText>
-              </NavItem>
-            ))}
-          </Nav>
-        )}
+        <Divider $collapsed={collapsed} />
 
+        <NavSection>
+          {mainNav.map(({ label, icon: Icon, path }) => (
+            <NavItem
+              key={path}
+              $active={isActive(path)}
+              $collapsed={collapsed}
+              onClick={() => navigate(path)}
+              title={collapsed ? label : undefined}
+            >
+              <Icon size={18} strokeWidth={isActive(path) ? 2.2 : 1.8} />
+              <NavText $collapsed={collapsed}>{label}</NavText>
+            </NavItem>
+          ))}
+
+          <NavItem
+            $active={isActive("/account")}
+            $collapsed={collapsed}
+            onClick={() => navigate("/account")}
+            title={collapsed ? "Account" : undefined}
+          >
+            <User size={18} strokeWidth={isActive("/account") ? 2.2 : 1.8} />
+            <NavText $collapsed={collapsed}>Account</NavText>
+          </NavItem>
+
+          {isAdmin && (
+            <>
+              <SectionLabel $collapsed={collapsed}>Admin</SectionLabel>
+              {adminNav.map(({ label, icon: Icon, path }) => (
+                <NavItem
+                  key={path}
+                  $active={isActive(path)}
+                  $collapsed={collapsed}
+                  onClick={() => navigate(path)}
+                  title={collapsed ? label : undefined}
+                >
+                  <Icon size={18} strokeWidth={isActive(path) ? 2.2 : 1.8} />
+                  <NavText $collapsed={collapsed}>{label}</NavText>
+                </NavItem>
+              ))}
+            </>
+          )}
+        </NavSection>
+      </TopSection>
+
+      <BottomSection>
         <ToggleButton onClick={onToggle} $collapsed={collapsed}>
-          <ToggleIcon viewBox="0 0 16 16">
-            {collapsed ? (
-              <>
-                <line x1="2" y1="4" x2="14" y2="4" stroke="white" strokeWidth="2" />
-                <line x1="2" y1="8" x2="14" y2="8" stroke="white" strokeWidth="2" />
-                <line x1="2" y1="12" x2="14" y2="12" stroke="white" strokeWidth="2" />
-              </>
-            ) : (
-              <path
-                d="M11 2 L5 8 L11 14"
-                stroke="white"
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="round"
-              />
-            )}
-          </ToggleIcon>
-          {!collapsed && <ToggleText $collapsed={collapsed}>Collapse</ToggleText>}
+          {collapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
+          <NavText $collapsed={collapsed}>Collapse</NavText>
         </ToggleButton>
-      </div>
+      </BottomSection>
     </SidebarWrap>
   );
 }

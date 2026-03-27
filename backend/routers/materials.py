@@ -10,10 +10,10 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from config import openai_client, s3_client, S3_BUCKET_NAME, SYSTEM_USER_ID
-from database import get_db, Material, VectorIndexEntry
+from database import get_db, Material
 from deps import get_current_user, _enforce_admin_access
-from material_cache import cache_text, get_cached_text, invalidate_cache, invalidate_vector_cache
-from utils.rag import chunk_text, extract_text_from_file, generate_embeddings
+from material_cache import cache_text, get_cached_text, invalidate_cache
+from rag.extraction import extract_text_from_file
 
 router = APIRouter(tags=["materials"])
 
@@ -47,6 +47,44 @@ def _store_file(file_content: bytes, s3_key: str, content_type: str) -> Optional
     return str(local_path)
 
 
+def _run_rag_pipeline(material_id: int) -> None:
+    """Run the new RAG pipeline for a material in a background thread."""
+    import time as _time
+    from database import get_session_local
+    from rag.embedder import get_embedder
+    from rag.pipeline import ingest_document
+    from rag.hierarchy_builder import GeneralDetector
+
+    t0 = _time.perf_counter()
+    bg_db = get_session_local()()
+    try:
+        embedder = get_embedder()
+        detector = GeneralDetector()
+        ingest_document(material_id, bg_db, embedder, detector)
+
+        bg_material = bg_db.query(Material).filter(Material.id == material_id).first()
+        if bg_material:
+            bg_material.status = "processed"
+            bg_material.processing_progress = 100
+            bg_material.processed_at = func.now()
+            bg_db.commit()
+            elapsed = _time.perf_counter() - t0
+            print(f"✓ RAG pipeline complete for material {material_id} ({elapsed:.1f}s)")
+    except Exception as e:
+        try:
+            m = bg_db.query(Material).filter(Material.id == material_id).first()
+            if m:
+                m.status = "failed"
+                m.processing_error = str(e)
+                bg_db.commit()
+        except Exception:
+            pass
+        elapsed = _time.perf_counter() - t0
+        print(f"✗ RAG pipeline error for material {material_id} ({elapsed:.1f}s): {e}")
+    finally:
+        bg_db.close()
+
+
 # ── User file upload ──────────────────────────────────────────
 
 @router.post("/api/upload")
@@ -68,6 +106,7 @@ async def upload_file(
     s3_key = f"uploads/{current_user['user_id']}/{file_id}_{file.filename}"
     file_path = _store_file(file_content, s3_key, file.content_type or "")
 
+    # Extract text for display in the dashboard
     try:
         extracted_text = extract_text_from_file(file_content, file_extension)
     except Exception as e:
@@ -79,6 +118,7 @@ async def upload_file(
         file_type=file_extension,
         file_path=file_path,
         file_size=len(file_content),
+        extracted_text=extracted_text,
         status="processing",
         processing_progress=0,
     )
@@ -86,58 +126,21 @@ async def upload_file(
     db.commit()
     db.refresh(material)
 
-    try:
-        chunks = chunk_text(extracted_text)
-        for i, chunk in enumerate(chunks):
-            try:
-                embedding = generate_embeddings(chunk)
-                db.add(VectorIndexEntry(
-                    user_id=current_user["user_id"],
-                    content_hash=f"{file_id}_{i}",
-                    embedding=embedding,
-                    content=chunk,
-                    token_count=len(chunk.split()),
-                    chunk_index=i,
-                    source_type="material",
-                    source_id=material.id,
-                    embedding_model="text-embedding-3-small",
-                    vector_metadata={
-                        "file_name": file.filename,
-                        "chunk_index": i,
-                        "total_chunks": len(chunks),
-                        "file_type": file_extension,
-                        "file_size": len(file_content),
-                    },
-                ))
-            except Exception as e:
-                print(f"Error creating embedding for chunk {i}: {e}")
-                continue
+    cache_text(material.id, extracted_text)
 
-        db.commit()
-        material.status = "processed"
-        material.processing_progress = 100
-        material.chunk_count = len(chunks)
-        material.total_tokens = sum(len(c.split()) for c in chunks)
-        material.extracted_text = extracted_text
-        material.processed_at = func.now()
-        db.commit()
-        cache_text(material.id, extracted_text)
+    # Run the new RAG pipeline in background
+    threading.Thread(target=_run_rag_pipeline, args=(material.id,), daemon=True).start()
 
-        return {
-            "success": True,
-            "material_id": material.id,
-            "file_name": file.filename,
-            "file_type": file_extension,
-            "chunks_created": len(chunks),
-            "text_length": len(extracted_text),
-            "file_path": file_path,
-            "message": f"File processed successfully. Created {len(chunks)} chunks for RAG.",
-        }
-    except Exception as e:
-        material.status = "failed"
-        material.processing_error = str(e)
-        db.commit()
-        raise HTTPException(status_code=500, detail=f"Error processing file for RAG: {str(e)}")
+    return {
+        "success": True,
+        "material_id": material.id,
+        "file_name": file.filename,
+        "file_type": file_extension,
+        "text_length": len(extracted_text),
+        "file_path": file_path,
+        "status": "processing",
+        "message": "File uploaded. Processing with RAG pipeline in background.",
+    }
 
 
 # ── Admin system-material upload ─────────────────────────────
@@ -164,6 +167,7 @@ async def upload_system_material(
     s3_key = f"system-materials/{file_id}_{file.filename}"
     file_path = _store_file(file_content, s3_key, file.content_type or "")
 
+    # Extract text for display
     try:
         extracted_text = extract_text_from_file(file_content, file_extension)
     except Exception as e:
@@ -183,6 +187,7 @@ async def upload_system_material(
         file_type=file_extension,
         file_path=file_path,
         file_size=len(file_content),
+        extracted_text=extracted_text,
         status="processing",
         processing_progress=0,
     )
@@ -190,74 +195,10 @@ async def upload_system_material(
     db.commit()
     db.refresh(material)
 
-    def process_material_background():
-        from database import get_session_local
-        background_db = get_session_local()()
-        try:
-            bg_material = background_db.query(Material).filter(Material.id == material.id).first()
-            if not bg_material:
-                return
+    cache_text(material.id, extracted_text)
 
-            chunks = chunk_text(extracted_text)
-            total_chunks = len(chunks)
-            successful_chunks = 0
-
-            for i, chunk in enumerate(chunks):
-                try:
-                    bg_material.processing_progress = int((i / total_chunks) * 100)
-                    background_db.commit()
-
-                    embedding = generate_embeddings(chunk)
-                    background_db.add(VectorIndexEntry(
-                        user_id=SYSTEM_USER_ID,
-                        content_hash=f"{file_id}_{i}",
-                        embedding=embedding,
-                        content=chunk,
-                        token_count=len(chunk.split()),
-                        chunk_index=i,
-                        source_type="material",
-                        source_id=bg_material.id,
-                        embedding_model="text-embedding-3-small",
-                        vector_metadata={
-                            "file_name": file.filename,
-                            "chunk_index": i,
-                            "total_chunks": total_chunks,
-                            "file_type": file_extension,
-                            "file_size": len(file_content),
-                            "is_system": True,
-                        },
-                    ))
-                    successful_chunks += 1
-                    if (i + 1) % 10 == 0:
-                        background_db.commit()
-                except Exception as e:
-                    print(f"Error creating embedding for chunk {i}: {e}")
-                    continue
-
-            background_db.commit()
-            bg_material.status = "processed"
-            bg_material.processing_progress = 100
-            bg_material.chunk_count = successful_chunks
-            bg_material.total_tokens = sum(len(c.split()) for c in chunks)
-            bg_material.extracted_text = extracted_text
-            bg_material.processed_at = func.now()
-            background_db.commit()
-            cache_text(bg_material.id, extracted_text)
-            print(f"✓ Successfully processed system material: {file.filename} ({successful_chunks} chunks)")
-        except Exception as e:
-            try:
-                m = background_db.query(Material).filter(Material.id == material.id).first()
-                if m:
-                    m.status = "failed"
-                    m.processing_error = str(e)
-                    background_db.commit()
-            except Exception:
-                pass
-            print(f"✗ Error processing system material {file.filename}: {e}")
-        finally:
-            background_db.close()
-
-    threading.Thread(target=process_material_background, daemon=True).start()
+    # Run the new RAG pipeline in background
+    threading.Thread(target=_run_rag_pipeline, args=(material.id,), daemon=True).start()
 
     return {
         "success": True,
@@ -267,7 +208,7 @@ async def upload_system_material(
         "file_size": len(file_content),
         "file_path": file_path,
         "status": "processing",
-        "message": "System material uploaded. Processing in background.",
+        "message": "System material uploaded. Processing with RAG pipeline in background.",
     }
 
 
@@ -348,12 +289,14 @@ def delete_material(
         raise HTTPException(status_code=404, detail="Material not found")
 
     invalidate_cache(material_id)
-    invalidate_vector_cache(material_id)
 
-    db.query(VectorIndexEntry).filter(
-        VectorIndexEntry.source_id == material_id,
-        VectorIndexEntry.source_type == "material",
-    ).delete()
+    # Clean up RAG pipeline data
+    from models.rag import RagDocument, RagChunk, RagNode
+    rag_doc = db.query(RagDocument).filter(RagDocument.material_id == material_id).first()
+    if rag_doc:
+        db.query(RagChunk).filter(RagChunk.document_id == rag_doc.id).delete()
+        db.query(RagNode).filter(RagNode.document_id == rag_doc.id).delete()
+        db.delete(rag_doc)
 
     db.delete(material)
     db.commit()
@@ -400,7 +343,7 @@ def download_material(
     )
 
 
-# ── Search ────────────────────────────────────────────────────
+# ── Search (uses new RAG pipeline) ────────────────────────────
 
 @router.get("/api/search")
 def search_materials(
@@ -409,45 +352,18 @@ def search_materials(
     db: Session = Depends(get_db),
     limit: int = 5,
 ):
-    if not openai_client:
-        raise HTTPException(status_code=503, detail="OpenAI client not configured")
+    from rag.embedder import get_embedder
+    from rag.pipeline import search_chunks
 
     try:
-        query_embedding = generate_embeddings(query)
-
-        user_materials = db.query(Material).filter(
-            or_(Material.user_id == current_user["user_id"], Material.user_id == SYSTEM_USER_ID),
-            Material.status == "processed",
-        ).all()
-
-        material_ids = [m.id for m in user_materials]
-        if not material_ids:
-            return {"results": [], "message": "No processed materials found"}
-
-        vector_entries = db.query(VectorIndexEntry).filter(
-            VectorIndexEntry.source_id.in_(material_ids),
-            VectorIndexEntry.source_type == "material",
-            or_(
-                VectorIndexEntry.user_id == current_user["user_id"],
-                VectorIndexEntry.user_id == SYSTEM_USER_ID,
-            ),
-        ).all()
-
-        results = sorted(
-            [
-                {
-                    "content": e.content,
-                    "similarity": sum(a * b for a, b in zip(query_embedding, e.embedding)),
-                    "metadata": e.vector_metadata,
-                    "source_id": e.source_id,
-                    "is_system": e.user_id == SYSTEM_USER_ID,
-                }
-                for e in vector_entries
-            ],
-            key=lambda x: x["similarity"],
-            reverse=True,
+        embedder = get_embedder()
+        results = search_chunks(
+            query=query,
+            user_id=current_user["user_id"],
+            db=db,
+            embedder=embedder,
+            top_k=limit,
         )
-
-        return {"results": results[:limit], "query": query, "total_found": len(results)}
+        return {"results": results, "query": query, "total_found": len(results)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search error: {str(e)}")

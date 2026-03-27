@@ -10,7 +10,64 @@ Minimum setup to run Clyvara locally. No cloud services required.
 |------|-----------------|
 | Python | 3.10+ |
 | Node.js | 20.19+ or 22+ |
-| PostgreSQL | 12+ |
+| PostgreSQL | 12+ (with pgvector) |
+
+### Install pgvector
+
+The RAG pipeline requires the [pgvector](https://github.com/pgvector/pgvector) PostgreSQL extension.
+
+**Linux (Ubuntu/Debian):**
+
+Install PostgreSQL, build tools, and the PostgreSQL server headers for your version:
+
+```bash
+sudo apt update
+sudo apt install -y postgresql postgresql-server-dev-17 build-essential git
+```
+
+If you are on PostgreSQL 16 or another version, replace `postgresql-server-dev-17`
+with the matching package for your installed server version.
+
+Build and install `pgvector` from source:
+
+```bash
+git clone --branch v0.8.1 https://github.com/pgvector/pgvector.git
+cd pgvector
+make
+sudo make install
+cd ..
+```
+
+**macOS (Homebrew PostgreSQL):**
+
+```bash
+brew install pgvector
+```
+
+**macOS (EDB / system PostgreSQL at `/Library/PostgreSQL/`):**
+
+If your running PostgreSQL server uses `/Library/PostgreSQL/<version>/` (check with
+`psql -c "SHOW data_directory;"`), Homebrew installs pgvector to the wrong location.
+Copy the files manually after `brew install pgvector`:
+
+```bash
+PG_VERSION=17  # adjust to your version
+
+sudo cp /opt/homebrew/lib/postgresql@${PG_VERSION}/vector.dylib \
+        /Library/PostgreSQL/${PG_VERSION}/lib/postgresql/
+
+sudo cp /opt/homebrew/share/postgresql@${PG_VERSION}/extension/vector.control \
+        /Library/PostgreSQL/${PG_VERSION}/share/postgresql/extension/
+
+sudo cp /opt/homebrew/share/postgresql@${PG_VERSION}/extension/vector--*.sql \
+        /Library/PostgreSQL/${PG_VERSION}/share/postgresql/extension/
+```
+
+**Verify** (after creating the database in step 5):
+
+```bash
+psql -d clyvara_dev -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
 
 Install Node via nvm if needed:
 

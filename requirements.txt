@@ -29,10 +29,13 @@ uvloop==0.21.0
 watchfiles==1.1.0
 websockets==15.0.1
 boto3==1.35.0
-PyPDF2==3.0.1
+PyMuPDF>=1.25.0
 python-docx==1.1.0
 PyJWT==2.11.0
 python-multipart==0.0.22
 alembic==1.15.1
 bcrypt==4.1.2
+pgvector==0.3.6
+sentence-transformers==4.1.0
+tiktoken==0.9.0
 pytest==8.3.5

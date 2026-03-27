@@ -267,81 +267,27 @@ def get_cache_stats() -> Dict:
     }
 
 
-# Vector entries cache for RAG performance
-_vector_entries_cache: Dict[int, list] = {}  # material_id -> list of vector entries
-_vector_cache_timestamp: Dict[int, float] = {}  # material_id -> last cache time
-
-def get_cached_vector_entries(material_id: int) -> Optional[list]:
-    """Get cached vector entries for a material"""
-    if material_id in _vector_entries_cache:
-        # Check if cache is still valid (5 minutes)
-        if time.time() - _vector_cache_timestamp.get(material_id, 0) < 300:
-            return _vector_entries_cache[material_id]
-        else:
-            # Expired, remove from cache
-            del _vector_entries_cache[material_id]
-            if material_id in _vector_cache_timestamp:
-                del _vector_cache_timestamp[material_id]
-    return None
-
-
-def cache_vector_entries(material_id: int, vector_entries: list):
-    """Cache vector entries for a material"""
-    _vector_entries_cache[material_id] = vector_entries
-    _vector_cache_timestamp[material_id] = time.time()
-
-
-def invalidate_vector_cache(material_id: int):
-    """Invalidate vector entries cache for a material"""
-    if material_id in _vector_entries_cache:
-        del _vector_entries_cache[material_id]
-    if material_id in _vector_cache_timestamp:
-        del _vector_cache_timestamp[material_id]
-
-
 def preload_system_materials(db_session, system_user_id: str = "SYSTEM"):
     """
-    Preload system materials into cache.
+    Preload system materials extracted text into cache.
     Useful for warming up the cache on server startup.
     """
-    from database import Material, VectorIndexEntry
-    
+    from database import Material
+
     try:
         system_materials = db_session.query(Material).filter(
             Material.user_id == system_user_id,
             Material.status == "processed",
             Material.extracted_text.isnot(None)
         ).all()
-        
+
         loaded_count = 0
-        vector_loaded_count = 0
-        
         for material in system_materials:
             if material.extracted_text:
                 cache_text(material.id, material.extracted_text)
                 loaded_count += 1
-            
-            # Also preload vector entries for RAG performance
-            vector_entries = db_session.query(VectorIndexEntry).filter(
-                VectorIndexEntry.source_id == material.id,
-                VectorIndexEntry.source_type == "material"
-            ).all()
-            
-            if vector_entries:
-                # Convert to serializable format
-                cached_entries = []
-                for entry in vector_entries:
-                    cached_entries.append({
-                        'id': entry.id,
-                        'content': entry.content,
-                        'embedding': entry.embedding,
-                        'metadata': entry.vector_metadata,
-                        'chunk_index': entry.chunk_index
-                    })
-                cache_vector_entries(material.id, cached_entries)
-                vector_loaded_count += 1
-        
-        print(f"Preloaded {loaded_count} system materials text and {vector_loaded_count} vector entry sets into cache")
+
+        print(f"Preloaded {loaded_count} system materials text into cache")
         return loaded_count
     except Exception as e:
         print(f"Error preloading system materials: {e}")

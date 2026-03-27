@@ -3,18 +3,13 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from config import openai_client, SYSTEM_USER_ID
-from database import get_db, LearningPlan, LearningPlanProgress, Material, VectorIndexEntry
+from database import get_db, LearningPlan, LearningPlanProgress
 from deps import get_current_user
-from utils.rag import generate_embeddings
 
 router = APIRouter(tags=["learning-plans"])
-
-# Module-level cache for the general query embedding (always the same value)
-_general_query_embedding_cache = None
 
 
 # ── Schemas ───────────────────────────────────────────────────
@@ -59,8 +54,6 @@ async def generate_learning_plan_questions(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    global _general_query_embedding_cache
-
     if not openai_client:
         raise HTTPException(status_code=503, detail="OpenAI client not configured")
 
@@ -75,80 +68,23 @@ async def generate_learning_plan_questions(
 
         relevant_context = ""
         try:
-            if use_general_query and _general_query_embedding_cache is not None:
-                query_embedding = _general_query_embedding_cache
-            else:
-                query_embedding = generate_embeddings(query_text)
-                if use_general_query:
-                    _general_query_embedding_cache = query_embedding
+            from rag.embedder import get_embedder
+            from rag.pipeline import search_chunks
 
-            if use_general_query:
-                user_materials = db.query(Material).filter(
-                    Material.user_id == SYSTEM_USER_ID, Material.status == "processed"
-                ).all()
-            else:
-                user_materials = db.query(Material).filter(
-                    or_(Material.user_id == current_user["user_id"], Material.user_id == SYSTEM_USER_ID),
-                    Material.status == "processed",
-                ).all()
+            embedder = get_embedder()
+            user_id = SYSTEM_USER_ID if use_general_query else current_user["user_id"]
+            results = search_chunks(
+                query=query_text,
+                user_id=user_id,
+                db=db,
+                embedder=embedder,
+                top_k=3,
+            )
 
-            if user_materials:
-                material_ids = [m.id for m in user_materials]
-
-                if use_general_query:
-                    vector_entries = db.query(VectorIndexEntry).filter(
-                        VectorIndexEntry.source_id.in_(material_ids),
-                        VectorIndexEntry.source_type == "material",
-                        VectorIndexEntry.user_id == SYSTEM_USER_ID,
-                    ).limit(50).all()
-                else:
-                    vector_entries = db.query(VectorIndexEntry).filter(
-                        VectorIndexEntry.source_id.in_(material_ids),
-                        VectorIndexEntry.source_type == "material",
-                        or_(
-                            VectorIndexEntry.user_id == current_user["user_id"],
-                            VectorIndexEntry.user_id == SYSTEM_USER_ID,
-                        ),
-                    ).limit(30).all()
-
-                try:
-                    import numpy as np
-                    query_array = np.array(query_embedding)
-                    results = sorted(
-                        [
-                            {
-                                "content": e.content,
-                                "similarity": float(
-                                    np.dot(query_array, np.array(e.embedding))
-                                    / (np.linalg.norm(query_array) * np.linalg.norm(np.array(e.embedding)))
-                                ),
-                                "metadata": e.vector_metadata,
-                                "is_system": e.user_id == SYSTEM_USER_ID,
-                            }
-                            for e in vector_entries
-                        ],
-                        key=lambda x: x["similarity"],
-                        reverse=True,
-                    )[:3]
-                except ImportError:
-                    results = sorted(
-                        [
-                            {
-                                "content": e.content,
-                                "similarity": sum(a * b for a, b in zip(query_embedding, e.embedding)),
-                                "metadata": e.vector_metadata,
-                                "is_system": e.user_id == SYSTEM_USER_ID,
-                            }
-                            for e in vector_entries
-                        ],
-                        key=lambda x: x["similarity"],
-                        reverse=True,
-                    )[:3]
-
-                if results:
-                    relevant_context = "\n\nRelevant information:\n"
-                    for r in results:
-                        relevant_context += f"\n{r['content'][:400]}\n"
+            if results:
+                relevant_context = "\n\nRelevant information:\n"
+                for r in results:
+                    relevant_context += f"\n{r.get('content', '')[:400]}\n"
 
         except Exception as e:
             print(f"RAG search error: {e}")

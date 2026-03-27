@@ -32,7 +32,7 @@ if AUTH_MODE == "local":
     app.include_router(dev_auth.router)
 
 # ── Domain routers ─────────────────────────────────────────────
-from routers import debug, chat, care_plans, materials, learning_plans, profile
+from routers import debug, chat, care_plans, materials, learning_plans, profile, admin
 
 app.include_router(debug.router)
 app.include_router(chat.router)
@@ -40,6 +40,7 @@ app.include_router(care_plans.router)
 app.include_router(materials.router)
 app.include_router(learning_plans.router)
 app.include_router(profile.router)
+app.include_router(admin.router)
 
 
 # ── Startup ────────────────────────────────────────────────────

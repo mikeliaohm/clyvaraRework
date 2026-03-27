@@ -15,6 +15,8 @@ import Dashboard from "./pages/Dashboard.jsx";
 import CarePlanPage from "./pages/CarePlanPage.jsx";
 import LearningPlanPage from "./pages/LearningPlanPage.jsx";
 import Account from "./pages/Account.jsx";
+import StudyPage from "./pages/StudyPage.jsx";
+import AdminPage from "./pages/AdminPage.jsx";
 
 //Topics
 import OpioidsLearningPlan from "./learningplans/OpioidsLearningPlan.jsx";
@@ -37,14 +39,15 @@ export default function App() {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/study" element={<StudyPage />} />
         <Route path="/careplan" element={<CarePlanPage />} />
         <Route path="/learningplan" element={<LearningPlanPage />} />
 
         <Route path="/learningplan/opioids" element={<OpioidsLearningPlan />}/>
         <Route path="/learningplan/inhaledanesthetics" element={<InhaledAnestheticsLearningPlan />}/>
 
-
         <Route path="/account" element={<Account />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Route>
     </Routes>
   );

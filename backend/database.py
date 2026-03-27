@@ -202,29 +202,6 @@ class Material(Base):
     last_accessed = Column(DateTime)
 
 
-class VectorIndexEntry(Base):
-    __tablename__ = "vector_index_entries"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String, nullable=False)
-    content_hash = Column(String(64), unique=True)
-    embedding = Column(JSON, nullable=False)
-    content = Column(Text, nullable=False)
-    token_count = Column(Integer, default=0)
-    chunk_index = Column(Integer, default=0)
-
-    source_type = Column(String(50), nullable=False)
-    source_id = Column(Integer)
-
-    vector_metadata = Column(JSON, default=dict)
-    embedding_model = Column(String, default="text-embedding-3-small")
-
-    created_at = Column(DateTime, server_default=func.now())
-    last_accessed = Column(DateTime)
-    access_count = Column(Integer, default=0)
-    relevance_score = Column(DECIMAL)
-
-
 # ---------------------------------------------------------------------------
 # Learning Plans
 # ---------------------------------------------------------------------------
@@ -412,6 +389,7 @@ def init_db():
         engine = get_engine()
         with engine.begin() as conn:
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto;"))
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
 
         Base.metadata.create_all(bind=engine)
         print("Tables created successfully!")
@@ -431,6 +409,12 @@ def create_all_tables():
     except Exception as e:
         print(f"Error creating tables: {e}")
         return False
+
+
+# ---------------------------------------------------------------------------
+# Import RAG models so they are registered on Base.metadata
+# ---------------------------------------------------------------------------
+from models.rag import RagDocument, RagNode, RagChunk, IngestionRun  # noqa: F401, E402
 
 
 if __name__ == "__main__":
