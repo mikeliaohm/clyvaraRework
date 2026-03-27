@@ -270,6 +270,7 @@ def admin_rag_search(
             {
                 "chunk_id": str(r.get("chunk_id", "")),
                 "content": r.get("content", ""),
+                "content_display": r.get("content_display") or r.get("content", ""),
                 "heading_path": r.get("heading_path"),
                 "chunk_kind": r.get("chunk_kind"),
                 "page_start": r.get("page_start"),
@@ -330,6 +331,7 @@ def get_document_tree(
             "page_end": c.page_end,
             "token_count": c.token_count,
             "content_preview": (c.content or "")[:200],
+            "has_markdown": bool(c.content_display),
         })
 
     # Build node list with children references

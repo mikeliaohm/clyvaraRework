@@ -40,6 +40,7 @@ class NodeData:
 
     raw_text: str = ""
     cleaned_text: str = ""
+    raw_markdown: str = ""
     token_count: int = 0
 
     child_index: int = 0
@@ -241,11 +242,15 @@ def build_hierarchy(
     page_texts: list[str],
     document_id: str,
     detector: HeadingDetector,
+    page_markdowns: list[str] | None = None,
 ) -> list[NodeData]:
     """Scan page texts line-by-line and return a flat list of NodeData.
 
     The returned list is ordered depth-first.  Parent-child relationships
     are expressed via ``parent_id``.
+
+    If *page_markdowns* is provided (same length as *page_texts*), markdown
+    text is accumulated in parallel on each node's ``raw_markdown`` field.
     """
     root = NodeData(
         document_id=document_id,
@@ -260,7 +265,10 @@ def build_hierarchy(
     all_nodes: list[NodeData] = [root]
 
     current_lines: list[str] = []
+    current_md_lines: list[str] = []
     current_page: int = 0
+
+    has_markdown = page_markdowns is not None and len(page_markdowns) == len(page_texts)
 
     def _flush_text(target: NodeData) -> None:
         """Append accumulated lines to the target node."""
@@ -269,13 +277,28 @@ def build_hierarchy(
             target.raw_text += ("\n" if target.raw_text else "") + text
             target.token_count = count_tokens(target.raw_text)
             current_lines.clear()
+        if current_md_lines:
+            md = "\n".join(current_md_lines)
+            target.raw_markdown += ("\n" if target.raw_markdown else "") + md
+            current_md_lines.clear()
 
     for page_idx, page_text in enumerate(page_texts):
-        for line in page_text.splitlines():
+        # Build a line-indexed markdown lookup for this page
+        md_lines_for_page: list[str] = []
+        if has_markdown:
+            md_lines_for_page = page_markdowns[page_idx].splitlines()
+
+        plain_lines = page_text.splitlines()
+
+        for line_idx, line in enumerate(plain_lines):
             match = detector.detect_heading(line)
 
             if match is None:
                 current_lines.append(line)
+                if has_markdown and line_idx < len(md_lines_for_page):
+                    current_md_lines.append(md_lines_for_page[line_idx])
+                elif has_markdown:
+                    current_md_lines.append(line)  # fallback to plain
                 continue
 
             # Flush accumulated text to the current deepest node

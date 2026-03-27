@@ -19,6 +19,58 @@ import { supabase } from "../utils/supabaseClient";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
+/** Render simple markdown (headings, bold, italic) as HTML */
+function renderMarkdown(text) {
+  if (!text) return null;
+  const lines = text.split("\n");
+  const elements = [];
+  let key = 0;
+
+  for (const line of lines) {
+    if (line.startsWith("# ")) {
+      elements.push(<h3 key={key++} style={{ fontSize: 16, fontWeight: 700, margin: "12px 0 4px" }}>{formatInline(line.slice(2))}</h3>);
+    } else if (line.startsWith("## ")) {
+      elements.push(<h4 key={key++} style={{ fontSize: 15, fontWeight: 600, margin: "10px 0 4px" }}>{formatInline(line.slice(3))}</h4>);
+    } else if (line.trim() === "") {
+      elements.push(<br key={key++} />);
+    } else {
+      elements.push(<p key={key++} style={{ margin: "2px 0", lineHeight: 1.6 }}>{formatInline(line)}</p>);
+    }
+  }
+  return elements;
+}
+
+function formatInline(text) {
+  // Bold+italic: ***text***
+  // Bold: **text**
+  // Italic: *text*
+  const parts = [];
+  let remaining = text;
+  let key = 0;
+
+  const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    if (match[2]) {
+      parts.push(<strong key={key++}><em>{match[2]}</em></strong>);
+    } else if (match[3]) {
+      parts.push(<strong key={key++}>{match[3]}</strong>);
+    } else if (match[4]) {
+      parts.push(<em key={key++}>{match[4]}</em>);
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+  return parts.length ? parts : text;
+}
+
 // ── Styled components ────────────────────────────────────────
 
 const PageTitle = styled.h1`
@@ -849,7 +901,9 @@ export default function AdminPage() {
               {r.heading_path && (
                 <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{r.heading_path}</div>
               )}
-              <ResultContent>{r.content}</ResultContent>
+              <ResultContent>
+                {r.content_display ? renderMarkdown(r.content_display) : r.content}
+              </ResultContent>
               <ResultMeta>
                 {r.chunk_kind && <span>Kind: {r.chunk_kind}</span>}
                 {r.page_start != null && <span>Pages: {r.page_start}{r.page_end && r.page_end !== r.page_start ? `-${r.page_end}` : ''}</span>}
@@ -993,7 +1047,9 @@ export default function AdminPage() {
 
                         {/* Content (scrollable, fills remaining space) */}
                         <ChunkDetail style={{ flex: 1, minHeight: 0, marginTop: 0 }}>
-                          {chunkDetail.chunk?.content}
+                          {chunkDetail.chunk?.content_display
+                            ? renderMarkdown(chunkDetail.chunk.content_display)
+                            : chunkDetail.chunk?.content}
                         </ChunkDetail>
 
                         {/* Nav buttons (always at bottom) */}

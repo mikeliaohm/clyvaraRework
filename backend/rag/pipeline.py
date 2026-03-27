@@ -19,7 +19,7 @@ from rag.embedder import Embedder
 from rag.hierarchy_builder import HeadingDetector, NodeData, build_hierarchy
 from rag.chunker import ChunkData, chunk_document
 from rag.text_preprocessing import clean_pages, count_tokens
-from rag.extraction import extract_pages_from_pdf, extract_text_from_docx
+from rag.extraction import extract_pages_from_pdf, extract_pages_with_markdown, extract_text_from_docx
 
 
 # ---------------------------------------------------------------------------
@@ -103,11 +103,14 @@ def ingest_document(
         _update_doc_status(db, doc, "extracting")
 
         file_type = (material.file_type or "").lower()
+        page_markdowns = None
         if file_type == "pdf":
-            page_texts = extract_pages_from_pdf(file_content)
+            extractions = extract_pages_with_markdown(file_content)
+            page_texts = [e.plain_text for e in extractions]
+            page_markdowns = [e.markdown_text for e in extractions]
         elif file_type in ("docx", "doc"):
             raw = extract_text_from_docx(file_content)
-            page_texts = [raw]  # docx has no page concept
+            page_texts = [raw]
         elif file_type == "txt":
             page_texts = [file_content.decode("utf-8")]
         else:
@@ -127,7 +130,7 @@ def ingest_document(
         # -- Stage 3: Hierarchy -------------------------------------
         _log_stage(db, doc_id, "hierarchy", "running")
 
-        node_datas = build_hierarchy(cleaned_pages, doc_id, detector)
+        node_datas = build_hierarchy(cleaned_pages, doc_id, detector, page_markdowns=page_markdowns)
 
         # Apply cleaned text to each node
         for nd in node_datas:
@@ -184,6 +187,7 @@ def ingest_document(
                 page_end=cd.page_end,
                 token_count=cd.token_count,
                 content=cd.content,
+                content_display=cd.content_display or None,
                 content_for_embedding=cd.content_for_embedding,
                 embedding_model=cd.embedding_model,
             )
@@ -258,15 +262,16 @@ def search_chunks(
 
     sql = sa_text("""
         SELECT
-            c.id            AS chunk_id,
-            c.content       AS content,
-            c.heading_path  AS heading_path,
-            c.chunk_kind    AS chunk_kind,
-            c.page_start    AS page_start,
-            c.page_end      AS page_end,
-            c.token_count   AS token_count,
-            d.title         AS document_title,
-            d.id            AS document_id,
+            c.id              AS chunk_id,
+            c.content         AS content,
+            c.content_display AS content_display,
+            c.heading_path    AS heading_path,
+            c.chunk_kind      AS chunk_kind,
+            c.page_start      AS page_start,
+            c.page_end        AS page_end,
+            c.token_count     AS token_count,
+            d.title           AS document_title,
+            d.id              AS document_id,
             1 - (c.embedding <=> :query_vec) AS score
         FROM rag_chunks c
         JOIN rag_documents d ON c.document_id = d.id
@@ -317,6 +322,7 @@ def get_chunk_with_context(chunk_id: str, db: Session) -> dict[str, Any] | None:
         "chunk": {
             "id": str(chunk.id),
             "content": chunk.content,
+            "content_display": chunk.content_display,
             "heading_path": chunk.heading_path,
             "chunk_kind": chunk.chunk_kind,
             "token_count": chunk.token_count,

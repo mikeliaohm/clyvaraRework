@@ -55,6 +55,7 @@ class ChunkData:
 
     token_count: int = 0
     content: str = ""
+    content_display: str = ""  # markdown-formatted for frontend display
     content_for_embedding: str = ""
 
     embedding_model: str = ""
@@ -157,6 +158,7 @@ def merge_small_chunks(
         )
         if can_merge:
             prev.content = prev.content + "\n\n" + chunk.content
+            prev.content_display = prev.content_display + "\n\n" + chunk.content_display
             prev.token_count = count_tokens(prev.content)
             prev.page_end = chunk.page_end or prev.page_end
         else:
@@ -228,6 +230,8 @@ def chunk_document(
         if node.node_type == "reference":
             continue
 
+        md_text = (node.raw_markdown or "").strip()
+
         # Clinical moments -> standalone chunk
         if node.node_type == "clinical_moment":
             cd = ChunkData(
@@ -239,6 +243,7 @@ def chunk_document(
                 page_end=node.page_end,
                 token_count=count_tokens(text),
                 content=text,
+                content_display=md_text or text,
                 embedding_model=embedding_model,
             )
             cd.content_for_embedding = build_embedding_input(cd, title)
@@ -247,6 +252,7 @@ def chunk_document(
 
         # Regular node -- split if needed
         pieces = split_if_needed(text)
+        use_single_md = len(pieces) == 1 and md_text
 
         for piece in pieces:
             cd = ChunkData(
@@ -258,6 +264,7 @@ def chunk_document(
                 page_end=node.page_end,
                 token_count=count_tokens(piece),
                 content=piece,
+                content_display=md_text if use_single_md else piece,
                 embedding_model=embedding_model,
             )
             cd.content_for_embedding = build_embedding_input(cd, title)

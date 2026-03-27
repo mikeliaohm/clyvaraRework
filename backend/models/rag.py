@@ -96,6 +96,7 @@ class RagChunk(Base):
 
     token_count = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
+    content_display = Column(Text, nullable=True)  # markdown-formatted for frontend display
     content_for_embedding = Column(Text, nullable=False)
 
     embedding = Column(Vector())  # dimension set at insert time
