@@ -494,6 +494,7 @@ export default function AdminPage() {
   const [searchResults, setSearchResults] = useState(null);
   const [searching, setSearching] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [detector, setDetector] = useState("medical");
   const fileInputRef = useRef();
 
   // Tree modal state
@@ -562,6 +563,7 @@ export default function AdminPage() {
       const headers = await getAuthHeaders();
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("detector", detector);
       const resp = await fetch(`${API_URL}/admin/upload-system-material`, {
         method: "POST", headers, body: formData,
       });
@@ -590,7 +592,7 @@ export default function AdminPage() {
     if (!confirm(`Reprocess "${title}"? This will clear existing RAG data and re-run the pipeline.`)) return;
     try {
       const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_URL}/admin/system-materials/${materialId}/reprocess`, {
+      const resp = await fetch(`${API_URL}/admin/system-materials/${materialId}/reprocess?detector=${detector}`, {
         method: "POST", headers,
       });
       if (resp.ok) {
@@ -643,7 +645,7 @@ export default function AdminPage() {
     if (!confirm(`Reprocess "${title}"? This will clear existing RAG data and re-run the pipeline.`)) return;
     try {
       const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_URL}/admin/user-materials/${materialId}/reprocess`, {
+      const resp = await fetch(`${API_URL}/admin/user-materials/${materialId}/reprocess?detector=${detector}`, {
         method: "POST", headers,
       });
       if (resp.ok) {
@@ -855,6 +857,20 @@ export default function AdminPage() {
           </p>
           <UploadHint>PDF, DOCX, DOC, or TXT — visible to all users.</UploadHint>
         </UploadArea>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+          <span style={{ fontSize: 13, color: "#6b7280" }}>Document type:</span>
+          <select
+            value={detector}
+            onChange={(e) => setDetector(e.target.value)}
+            style={{
+              padding: "6px 10px", borderRadius: 6, border: "1px solid #d1d5db",
+              fontSize: 13, fontFamily: "'General Sans', sans-serif", color: "#374151",
+            }}
+          >
+            <option value="medical">Medical textbook</option>
+            <option value="general">General document</option>
+          </select>
+        </div>
         <FileInput
           type="file"
           ref={fileInputRef}
@@ -888,6 +904,7 @@ export default function AdminPage() {
                   <Th>Size</Th>
                   <Th>Status</Th>
                   <Th>Chunks</Th>
+                  <Th>Time</Th>
                   <Th>Uploaded</Th>
                   <Th></Th>
                 </tr>
@@ -904,6 +921,7 @@ export default function AdminPage() {
                       </Badge>
                     </Td>
                     <Td>{m.chunk_count ?? "—"}</Td>
+                    <Td>{m.processing_time_seconds ? `${m.processing_time_seconds}s` : "—"}</Td>
                     <Td>{m.uploaded_at ? new Date(m.uploaded_at).toLocaleDateString() : "—"}</Td>
                     <Td>
                       <div style={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
@@ -970,6 +988,7 @@ export default function AdminPage() {
                 <Th>Size</Th>
                 <Th>Status</Th>
                 <Th>Chunks</Th>
+                <Th>Time</Th>
                 <Th>Uploaded</Th>
                 <Th></Th>
               </tr>
@@ -992,6 +1011,7 @@ export default function AdminPage() {
                     )}
                   </Td>
                   <Td>{m.chunk_count ?? "—"}</Td>
+                  <Td>{m.processing_time_seconds ? `${m.processing_time_seconds}s` : "—"}</Td>
                   <Td>{m.uploaded_at ? new Date(m.uploaded_at).toLocaleDateString() : "—"}</Td>
                   <Td>
                     <div style={{ display: "flex", gap: 2, flexWrap: "wrap" }}>

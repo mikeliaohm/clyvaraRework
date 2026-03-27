@@ -10,7 +10,9 @@ import {
   Shield,
   ChevronLeft,
   Menu,
+  LogOut,
 } from "lucide-react";
+import { supabase } from "../utils/supabaseClient";
 import clyvaralogo from "../assets/clyvaranewlogo.svg";
 
 const SidebarWrap = styled.aside`
@@ -214,10 +216,26 @@ export default function DashboardSidebar({ collapsed, onToggle, isAdmin }) {
       </TopSection>
 
       <BottomSection>
-        <ToggleButton onClick={onToggle} $collapsed={collapsed}>
-          {collapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
-          <NavText $collapsed={collapsed}>Collapse</NavText>
-        </ToggleButton>
+        <NavSection>
+          <NavItem
+            $collapsed={collapsed}
+            onClick={async () => { await supabase.auth.signOut(); navigate("/login"); }}
+            title={collapsed ? "Sign out" : undefined}
+            style={{ color: "rgba(255,255,255,0.5)" }}
+          >
+            <LogOut size={18} strokeWidth={1.8} />
+            <NavText $collapsed={collapsed}>Sign out</NavText>
+          </NavItem>
+          <NavItem
+            $collapsed={collapsed}
+            onClick={onToggle}
+            title={collapsed ? "Expand" : "Collapse"}
+            style={{ color: "rgba(255,255,255,0.5)" }}
+          >
+            {collapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
+            <NavText $collapsed={collapsed}>Collapse</NavText>
+          </NavItem>
+        </NavSection>
       </BottomSection>
     </SidebarWrap>
   );

@@ -115,6 +115,7 @@ def list_system_materials(
                 "processing_error": m.processing_error,
                 "chunk_count": m.chunk_count,
                 "total_tokens": m.total_tokens,
+                "processing_time_seconds": m.processing_time_seconds,
                 "uploaded_at": m.uploaded_at.isoformat() if m.uploaded_at else None,
                 "processed_at": m.processed_at.isoformat() if m.processed_at else None,
             }
@@ -162,6 +163,7 @@ def delete_system_material(
 @router.post("/system-materials/{material_id}/reprocess")
 def reprocess_system_material(
     material_id: int,
+    detector: str = Query("medical"),
     x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -192,10 +194,11 @@ def reprocess_system_material(
     db.commit()
 
     # Run pipeline in background
+    det = detector if detector in ("general", "medical") else "medical"
     from routers.materials import _run_rag_pipeline
-    threading.Thread(target=_run_rag_pipeline, args=(material.id,), daemon=True).start()
+    threading.Thread(target=_run_rag_pipeline, args=(material.id, det), daemon=True).start()
 
-    return {"success": True, "message": f"Reprocessing '{material.title}' in background."}
+    return {"success": True, "message": f"Reprocessing '{material.title}' with {det} detector in background."}
 
 
 # ── System material detail & download ────────────────────────
@@ -309,6 +312,7 @@ def list_user_materials(
                 "processing_error": m.processing_error,
                 "chunk_count": m.chunk_count,
                 "total_tokens": m.total_tokens,
+                "processing_time_seconds": m.processing_time_seconds,
                 "uploaded_at": m.uploaded_at.isoformat() if m.uploaded_at else None,
                 "processed_at": m.processed_at.isoformat() if m.processed_at else None,
             }
@@ -396,6 +400,7 @@ def download_user_material(
 @router.post("/user-materials/{material_id}/reprocess")
 def reprocess_user_material(
     material_id: int,
+    detector: str = Query("medical"),
     x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -426,10 +431,11 @@ def reprocess_user_material(
     db.commit()
 
     # Run pipeline in background
+    det = detector if detector in ("general", "medical") else "medical"
     from routers.materials import _run_rag_pipeline
-    threading.Thread(target=_run_rag_pipeline, args=(material.id,), daemon=True).start()
+    threading.Thread(target=_run_rag_pipeline, args=(material.id, det), daemon=True).start()
 
-    return {"success": True, "message": f"Reprocessing '{material.title}' in background."}
+    return {"success": True, "message": f"Reprocessing '{material.title}' with {det} detector in background."}
 
 
 # ── RAG search test ──────────────────────────────────────────

@@ -5,7 +5,7 @@ see docs/REMOVED_MODELS.md.
 """
 
 from sqlalchemy import (
-    create_engine, Column, String, DateTime, JSON, Integer, Boolean,
+    create_engine, Column, String, DateTime, JSON, Integer, Boolean, Float,
     DECIMAL, Text, text, Numeric, ForeignKey, UniqueConstraint,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -195,6 +195,9 @@ class Material(Base):
     chunk_count = Column(Integer, default=0)
     total_tokens = Column(Integer, default=0)
     embedding_model = Column(String, default="text-embedding-3-small")
+
+    # Processing metrics
+    processing_time_seconds = Column(Float)
 
     # Timestamps
     uploaded_at = Column(DateTime, server_default=func.now())
