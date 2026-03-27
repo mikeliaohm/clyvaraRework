@@ -16,6 +16,28 @@ Minimum setup to run Clyvara locally. No cloud services required.
 
 The RAG pipeline requires the [pgvector](https://github.com/pgvector/pgvector) PostgreSQL extension.
 
+**Linux (Ubuntu/Debian):**
+
+Install PostgreSQL, build tools, and the PostgreSQL server headers for your version:
+
+```bash
+sudo apt update
+sudo apt install -y postgresql postgresql-server-dev-17 build-essential git
+```
+
+If you are on PostgreSQL 16 or another version, replace `postgresql-server-dev-17`
+with the matching package for your installed server version.
+
+Build and install `pgvector` from source:
+
+```bash
+git clone --branch v0.8.1 https://github.com/pgvector/pgvector.git
+cd pgvector
+make
+sudo make install
+cd ..
+```
+
 **macOS (Homebrew PostgreSQL):**
 
 ```bash

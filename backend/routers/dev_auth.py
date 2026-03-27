@@ -10,7 +10,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
 from auth import create_local_token, get_current_user
-from database import get_db, User
+from database import get_db, User, Role, UserRole
 
 router = APIRouter(prefix="/api/auth", tags=["auth-dev"])
 
@@ -38,6 +38,7 @@ class UserResponse(BaseModel):
     specialty: str | None = None
     graduation_year: int | None = None
     institution: str | None = None
+    roles: list[str] = []
 
 
 class AuthResponse(BaseModel):
@@ -91,6 +92,13 @@ def me(current_user: dict = Depends(get_current_user), db: Session = Depends(get
     user = db.query(User).filter(User.id == int(current_user["user_id"])).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    role_names = [
+        row[0]
+        for row in db.query(Role.name)
+        .join(UserRole, UserRole.role_id == Role.id)
+        .filter(UserRole.user_id == user.id)
+        .all()
+    ]
     return UserResponse(
         id=user.id,
         email=user.email,
@@ -99,4 +107,5 @@ def me(current_user: dict = Depends(get_current_user), db: Session = Depends(get
         specialty=user.specialty,
         graduation_year=user.graduation_year,
         institution=user.institution,
+        roles=role_names,
     )
