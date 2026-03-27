@@ -15,6 +15,8 @@ import {
   Eye,
   X,
   RotateCcw,
+  FolderOpen,
+  Download,
 } from "lucide-react";
 import { supabase } from "../utils/supabaseClient";
 
@@ -485,6 +487,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("docs");
   const [users, setUsers] = useState([]);
   const [systemMaterials, setSystemMaterials] = useState([]);
+  const [userMaterials, setUserMaterials] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -508,15 +511,17 @@ export default function AdminPage() {
   const [ragChunkModal, setRagChunkModal] = useState(null);
 
   const tabs = [
-    { id: "docs",      label: "Documents",    icon: FileText },
-    { id: "rag",       label: "RAG Test",     icon: Search },
-    { id: "users",     label: "Users",        icon: Users },
-    { id: "questions", label: "Questions",     icon: ClipboardList },
+    { id: "docs",      label: "Documents",       icon: FileText },
+    { id: "userdocs",  label: "User Materials",   icon: FolderOpen },
+    { id: "rag",       label: "RAG Test",         icon: Search },
+    { id: "users",     label: "Users",            icon: Users },
+    { id: "questions", label: "Questions",         icon: ClipboardList },
   ];
 
   useEffect(() => {
     if (activeTab === "users") loadUsers();
     if (activeTab === "docs") loadSystemMaterials();
+    if (activeTab === "userdocs") loadUserMaterials();
   }, [activeTab]);
 
   const getAuthHeaders = async () => {
@@ -539,6 +544,14 @@ export default function AdminPage() {
       const resp = await fetch(`${API_URL}/admin/system-materials`, { headers });
       if (resp.ok) setSystemMaterials((await resp.json()).materials || []);
     } catch (err) { console.error("Error loading system materials:", err); }
+  };
+
+  const loadUserMaterials = async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_URL}/admin/user-materials`, { headers });
+      if (resp.ok) setUserMaterials((await resp.json()).materials || []);
+    } catch (err) { console.error("Error loading user materials:", err); }
   };
 
   const handleUpload = async (file) => {
@@ -585,6 +598,55 @@ export default function AdminPage() {
           m.id === materialId ? { ...m, status: "processing", chunk_count: 0 } : m
         ));
         setTimeout(() => loadSystemMaterials(), 5000);
+      }
+    } catch (err) { console.error("Error reprocessing:", err); }
+  };
+
+  const handleUserMaterialPreview = async (materialId, title) => {
+    try {
+      const headers = await getAuthHeaders();
+      const detailResp = await fetch(`${API_URL}/admin/user-materials/${materialId}/detail`, { headers });
+      if (!detailResp.ok) return;
+      const detail = await detailResp.json();
+
+      if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); }
+      setPreviewModal({ ...detail, title, _userMaterial: true });
+
+      if (detail.has_file && detail.file_type === "pdf") {
+        const fileResp = await fetch(`${API_URL}/admin/user-materials/${materialId}/download`, { headers });
+        if (fileResp.ok) {
+          const blob = await fileResp.blob();
+          setPreviewBlobUrl(URL.createObjectURL(blob));
+        }
+      }
+    } catch (err) { console.error("Preview error:", err); }
+  };
+
+  const handleUserMaterialDownload = async (materialId, title) => {
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_URL}/admin/user-materials/${materialId}/download`, { headers });
+      if (!resp.ok) { alert((await resp.json()).detail || "Download failed"); return; }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = title; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) { console.error("Download error:", err); }
+  };
+
+  const handleUserMaterialReprocess = async (materialId, title) => {
+    if (!confirm(`Reprocess "${title}"? This will clear existing RAG data and re-run the pipeline.`)) return;
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_URL}/admin/user-materials/${materialId}/reprocess`, {
+        method: "POST", headers,
+      });
+      if (resp.ok) {
+        setUserMaterials(prev => prev.map(m =>
+          m.id === materialId ? { ...m, status: "processing", chunk_count: 0 } : m
+        ));
+        setTimeout(() => loadUserMaterials(), 5000);
       }
     } catch (err) { console.error("Error reprocessing:", err); }
   };
@@ -874,6 +936,93 @@ export default function AdminPage() {
     </>
   );
 
+  const renderUserDocsTab = () => (
+    <Section>
+      <SectionTitle>
+        User Uploaded Materials
+        {userMaterials.length > 0 && (
+          <span style={{ fontWeight: 400, fontSize: 14, color: "#6b7280", marginLeft: 8 }}>
+            ({userMaterials.filter(m => m.status === "processed").length} indexed)
+          </span>
+        )}
+      </SectionTitle>
+
+      {userMaterials.length === 0 ? (
+        <EmptyState>
+          <FolderOpen size={28} />
+          <p>No user-uploaded materials found.</p>
+        </EmptyState>
+      ) : (
+        <Card style={{ padding: 0, overflow: "hidden" }}>
+          <Table>
+            <thead>
+              <tr>
+                <Th>User</Th>
+                <Th>Title</Th>
+                <Th>Type</Th>
+                <Th>Size</Th>
+                <Th>Status</Th>
+                <Th>Chunks</Th>
+                <Th>Uploaded</Th>
+                <Th></Th>
+              </tr>
+            </thead>
+            <tbody>
+              {userMaterials.map((m) => (
+                <tr key={m.id}>
+                  <Td style={{ fontSize: 13 }}>{m.user_email || m.user_id}</Td>
+                  <Td style={{ fontWeight: 500 }}>{m.title}</Td>
+                  <Td>{m.file_type?.toUpperCase()}</Td>
+                  <Td>{formatBytes(m.file_size)}</Td>
+                  <Td>
+                    <Badge $variant={m.status === "processed" ? "success" : m.status === "processing" ? "processing" : m.status === "failed" ? "error" : "default"}>
+                      {m.status}
+                    </Badge>
+                    {m.status === "failed" && m.processing_error && (
+                      <span title={m.processing_error} style={{ marginLeft: 4, cursor: "help" }}>
+                        <AlertCircle size={12} color="#991b1b" />
+                      </span>
+                    )}
+                  </Td>
+                  <Td>{m.chunk_count ?? "—"}</Td>
+                  <Td>{m.uploaded_at ? new Date(m.uploaded_at).toLocaleDateString() : "—"}</Td>
+                  <Td>
+                    <div style={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                      {m.status === "processed" && (
+                        <>
+                          <IconButton onClick={() => handleUserMaterialPreview(m.id, m.title)}>
+                            <Eye size={14} /> Preview
+                          </IconButton>
+                          <IconButton onClick={() => openTreeModal(m.id, m.title)}>
+                            <ChevronRight size={14} /> Tree
+                          </IconButton>
+                        </>
+                      )}
+                      <IconButton onClick={() => handleUserMaterialDownload(m.id, m.title)}>
+                        <Download size={14} /> Download
+                      </IconButton>
+                      {(m.status === "processed" || m.status === "uploaded" || m.status === "failed") && (
+                        <IconButton onClick={() => handleUserMaterialReprocess(m.id, m.title)}>
+                          <RotateCcw size={14} /> Reprocess
+                        </IconButton>
+                      )}
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </Card>
+      )}
+
+      {userMaterials.length > 0 && (
+        <SecondaryButton onClick={loadUserMaterials} style={{ marginTop: 8 }}>
+          <RotateCcw size={14} /> Refresh
+        </SecondaryButton>
+      )}
+    </Section>
+  );
+
   const renderRagTab = () => (
     <Section>
       <SectionTitle>Test RAG Retrieval</SectionTitle>
@@ -1019,6 +1168,7 @@ export default function AdminPage() {
       </Tabs>
 
       {activeTab === "docs" && renderDocsTab()}
+      {activeTab === "userdocs" && renderUserDocsTab()}
       {activeTab === "rag" && renderRagTab()}
       {activeTab === "users" && renderUsersTab()}
       {activeTab === "questions" && renderQuestionsTab()}
@@ -1151,7 +1301,11 @@ export default function AdminPage() {
               <ModalTitle>{previewModal.title}</ModalTitle>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {previewModal.has_file && (
-                  <SecondaryButton onClick={() => handleDownload(previewModal.id, previewModal.title)}>
+                  <SecondaryButton onClick={() =>
+                    previewModal._userMaterial
+                      ? handleUserMaterialDownload(previewModal.id, previewModal.title)
+                      : handleDownload(previewModal.id, previewModal.title)
+                  }>
                     Download
                   </SecondaryButton>
                 )}

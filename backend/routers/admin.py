@@ -275,6 +275,163 @@ def download_system_material(
     )
 
 
+# ── User materials (read-only + reprocess) ───────────────────
+
+@router.get("/user-materials")
+def list_user_materials(
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all user-uploaded materials (excludes system materials)."""
+    _enforce_admin_access(db, current_user, x_admin_key)
+
+    from sqlalchemy import cast, String as SAString
+
+    materials = (
+        db.query(Material, User.email)
+        .outerjoin(User, Material.user_id == cast(User.id, SAString))
+        .filter(Material.user_id != SYSTEM_USER_ID)
+        .order_by(Material.uploaded_at.desc())
+        .all()
+    )
+    return {
+        "materials": [
+            {
+                "id": m.id,
+                "user_id": m.user_id,
+                "user_email": email,
+                "title": m.title,
+                "file_type": m.file_type,
+                "file_size": m.file_size,
+                "status": m.status,
+                "processing_progress": m.processing_progress,
+                "processing_error": m.processing_error,
+                "chunk_count": m.chunk_count,
+                "total_tokens": m.total_tokens,
+                "uploaded_at": m.uploaded_at.isoformat() if m.uploaded_at else None,
+                "processed_at": m.processed_at.isoformat() if m.processed_at else None,
+            }
+            for m, email in materials
+        ]
+    }
+
+
+@router.get("/user-materials/{material_id}/detail")
+def get_user_material_detail(
+    material_id: int,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get full user material detail including extracted text."""
+    _enforce_admin_access(db, current_user, x_admin_key)
+
+    from material_cache import get_cached_text, cache_text
+
+    material = db.query(Material).filter(
+        Material.id == material_id,
+        Material.user_id != SYSTEM_USER_ID,
+    ).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="User material not found")
+
+    cached = get_cached_text(material.id)
+    extracted_text = cached if cached is not None else material.extracted_text
+    if cached is None and extracted_text:
+        cache_text(material.id, extracted_text)
+
+    return {
+        "id": material.id,
+        "user_id": material.user_id,
+        "title": material.title,
+        "file_type": material.file_type,
+        "file_size": material.file_size,
+        "has_file": material.file_path is not None,
+        "status": material.status,
+        "chunk_count": material.chunk_count,
+        "extracted_text": extracted_text,
+        "uploaded_at": material.uploaded_at.isoformat() if material.uploaded_at else None,
+    }
+
+
+@router.get("/user-materials/{material_id}/download")
+def download_user_material(
+    material_id: int,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Download the original file for a user material."""
+    _enforce_admin_access(db, current_user, x_admin_key)
+
+    material = db.query(Material).filter(
+        Material.id == material_id,
+        Material.user_id != SYSTEM_USER_ID,
+    ).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="User material not found")
+    if not material.file_path:
+        raise HTTPException(status_code=404, detail="Original file not available")
+    if material.file_path.startswith("s3://"):
+        raise HTTPException(status_code=501, detail="S3 download not yet implemented")
+
+    file_path = Path(material.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    content_types = {
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "doc": "application/msword",
+        "txt": "text/plain",
+    }
+    return FileResponse(
+        path=file_path,
+        filename=material.title,
+        media_type=content_types.get(material.file_type, "application/octet-stream"),
+    )
+
+
+@router.post("/user-materials/{material_id}/reprocess")
+def reprocess_user_material(
+    material_id: int,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Re-run the RAG pipeline for a user material (clears old data first)."""
+    import threading
+    _enforce_admin_access(db, current_user, x_admin_key)
+
+    material = db.query(Material).filter(
+        Material.id == material_id,
+        Material.user_id != SYSTEM_USER_ID,
+    ).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="User material not found")
+
+    # Clean old RAG data
+    rag_doc = db.query(RagDocument).filter(RagDocument.material_id == material_id).first()
+    if rag_doc:
+        from models.rag import IngestionRun
+        db.query(RagChunk).filter(RagChunk.document_id == rag_doc.id).delete()
+        db.query(RagNode).filter(RagNode.document_id == rag_doc.id).delete()
+        db.query(IngestionRun).filter(IngestionRun.document_id == rag_doc.id).delete()
+        db.delete(rag_doc)
+
+    material.status = "processing"
+    material.processing_progress = 0
+    material.chunk_count = 0
+    db.commit()
+
+    # Run pipeline in background
+    from routers.materials import _run_rag_pipeline
+    threading.Thread(target=_run_rag_pipeline, args=(material.id,), daemon=True).start()
+
+    return {"success": True, "message": f"Reprocessing '{material.title}' in background."}
+
+
 # ── RAG search test ──────────────────────────────────────────
 
 @router.post("/rag-search")
