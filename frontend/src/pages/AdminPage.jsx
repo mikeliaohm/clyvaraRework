@@ -10,6 +10,10 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
+  ChevronRight,
+  ChevronDown,
+  Eye,
+  X,
 } from "lucide-react";
 import { supabase } from "../utils/supabaseClient";
 
@@ -45,10 +49,7 @@ const Tab = styled.button`
   margin-bottom: -2px;
   cursor: pointer;
   transition: all 0.15s ease;
-
-  &:hover {
-    color: #20359A;
-  }
+  &:hover { color: #20359A; }
 `;
 
 const Section = styled.div`
@@ -73,16 +74,12 @@ const Card = styled.div`
 const UploadArea = styled.div`
   border: 2px dashed ${p => p.$dragOver ? '#20359A' : '#d1d5db'};
   border-radius: 10px;
-  padding: 40px;
+  padding: 32px;
   text-align: center;
   cursor: pointer;
   transition: all 0.2s ease;
   background: ${p => p.$dragOver ? '#f0f4ff' : '#fafafa'};
-
-  &:hover {
-    border-color: #20359A;
-    background: #f0f4ff;
-  }
+  &:hover { border-color: #20359A; background: #f0f4ff; }
 `;
 
 const UploadHint = styled.p`
@@ -104,7 +101,6 @@ const PrimaryButton = styled.button`
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease;
-
   &:hover:not(:disabled) { background: #1a2a7a; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
@@ -122,7 +118,6 @@ const SecondaryButton = styled.button`
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-
   &:hover:not(:disabled) { background: #e5e7eb; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
@@ -138,8 +133,21 @@ const DangerButton = styled.button`
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s ease;
-
   &:hover { background: #fef2f2; }
+`;
+
+const IconButton = styled.button`
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  color: #20359A;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  &:hover { background: #f0f4ff; }
 `;
 
 const SearchBox = styled.div`
@@ -155,7 +163,6 @@ const Input = styled.input`
   border-radius: 8px;
   font-size: 14px;
   font-family: 'General Sans', sans-serif;
-
   &:focus {
     outline: none;
     border-color: #20359A;
@@ -258,7 +265,6 @@ const EmptyState = styled.div`
   text-align: center;
   padding: 48px 20px;
   color: #9ca3af;
-
   p { margin: 4px 0; }
 `;
 
@@ -285,10 +291,145 @@ const PlaceholderCard = styled(Card)`
   border-style: dashed;
 `;
 
+// ── Modal ────────────────────────────────────────────────────
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background: white;
+  border-radius: 12px;
+  width: 94%;
+  max-width: 1200px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+`;
+
+const ModalTitle = styled.h2`
+  margin: 0;
+  font-size: 18px;
+  font-family: 'Rethink Sans', sans-serif;
+`;
+
+const ModalBody = styled.div`
+  padding: 20px;
+  overflow: hidden;
+  flex: 1;
+`;
+
+const CloseButton = styled.button`
+  all: unset;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  color: #6b7280;
+  &:hover { background: #f3f4f6; color: #1a1a1a; }
+`;
+
+// ── Tree styles ──────────────────────────────────────────────
+
+const TreeNode = styled.div`
+  margin-left: ${p => p.$depth * 20}px;
+  padding: 4px 0;
+`;
+
+const TreeRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: ${p => p.$hasChunks ? 'pointer' : 'default'};
+  font-size: 14px;
+  &:hover { background: ${p => p.$hasChunks ? '#f3f4f6' : 'transparent'}; }
+`;
+
+const TreeLabel = styled.span`
+  font-weight: ${p => p.$isHeading ? 600 : 400};
+  color: ${p => p.$isHeading ? '#1a1a1a' : '#374151'};
+`;
+
+const TreeMeta = styled.span`
+  font-size: 12px;
+  color: #9ca3af;
+  margin-left: 8px;
+`;
+
+const ChunkList = styled.div`
+  margin-left: 28px;
+  border-left: 2px solid #e5e7eb;
+  padding-left: 12px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+`;
+
+const ChunkItem = styled.div`
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  border: 1px solid transparent;
+  &:hover {
+    background: #f0f4ff;
+    border-color: #d1d5db;
+  }
+`;
+
+const ChunkPreview = styled.p`
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+  white-space: pre-wrap;
+`;
+
+const ChunkDetail = styled.div`
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  max-height: 50vh;
+  overflow-y: auto;
+`;
+
+const ChunkNavButton = styled.button`
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #20359A;
+  border-radius: 6px;
+  cursor: pointer;
+  &:hover { background: #f0f4ff; }
+`;
+
 // ── Component ────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState("rag");
+  const [activeTab, setActiveTab] = useState("docs");
   const [users, setUsers] = useState([]);
   const [systemMaterials, setSystemMaterials] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -299,15 +440,27 @@ export default function AdminPage() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef();
 
+  // Tree modal state
+  const [treeModal, setTreeModal] = useState(null);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [expandedNodes, setExpandedNodes] = useState(new Set());
+  const [selectedChunk, setSelectedChunk] = useState(null);
+  const [chunkDetail, setChunkDetail] = useState(null);
+
+  // Preview modal state
+  const [previewModal, setPreviewModal] = useState(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState(null);
+
   const tabs = [
-    { id: "rag",       label: "Documents & RAG", icon: FileText },
-    { id: "users",     label: "Users",           icon: Users },
-    { id: "questions", label: "Questions",        icon: ClipboardList },
+    { id: "docs",      label: "Documents",    icon: FileText },
+    { id: "rag",       label: "RAG Test",     icon: Search },
+    { id: "users",     label: "Users",        icon: Users },
+    { id: "questions", label: "Questions",     icon: ClipboardList },
   ];
 
   useEffect(() => {
     if (activeTab === "users") loadUsers();
-    if (activeTab === "rag") loadSystemMaterials();
+    if (activeTab === "docs") loadSystemMaterials();
   }, [activeTab]);
 
   const getAuthHeaders = async () => {
@@ -320,80 +473,54 @@ export default function AdminPage() {
     try {
       const headers = await getAuthHeaders();
       const resp = await fetch(`${API_URL}/admin/users`, { headers });
-      if (resp.ok) {
-        const data = await resp.json();
-        setUsers(data.users || []);
-      }
-    } catch (err) {
-      console.error("Error loading users:", err);
-    }
+      if (resp.ok) setUsers((await resp.json()).users || []);
+    } catch (err) { console.error("Error loading users:", err); }
   };
 
   const loadSystemMaterials = async () => {
     try {
       const headers = await getAuthHeaders();
       const resp = await fetch(`${API_URL}/admin/system-materials`, { headers });
-      if (resp.ok) {
-        const data = await resp.json();
-        setSystemMaterials(data.materials || []);
-      }
-    } catch (err) {
-      console.error("Error loading system materials:", err);
-    }
+      if (resp.ok) setSystemMaterials((await resp.json()).materials || []);
+    } catch (err) { console.error("Error loading system materials:", err); }
   };
 
   const handleUpload = async (file) => {
     if (!file) return;
     setUploading(true);
     setUploadStatus(null);
-
     try {
       const headers = await getAuthHeaders();
       const formData = new FormData();
       formData.append("file", file);
-
       const resp = await fetch(`${API_URL}/admin/upload-system-material`, {
-        method: "POST",
-        headers,
-        body: formData,
+        method: "POST", headers, body: formData,
       });
-
       if (!resp.ok) {
         const err = await resp.json();
         throw new Error(err.detail || "Upload failed");
       }
-
       const result = await resp.json();
-      setUploadStatus({ type: "success", message: `Uploaded "${result.file_name}" - processing in background.` });
-      setTimeout(() => loadSystemMaterials(), 2000);
+      setUploadStatus({ type: "success", message: `Uploaded "${result.file_name}" — processing in background.` });
+      setTimeout(() => loadSystemMaterials(), 3000);
     } catch (err) {
       setUploadStatus({ type: "error", message: err.message });
-    } finally {
-      setUploading(false);
-    }
+    } finally { setUploading(false); }
   };
 
   const handleDeleteSystemMaterial = async (materialId, title) => {
     if (!confirm(`Delete system material "${title}"?`)) return;
     try {
       const headers = await getAuthHeaders();
-      const resp = await fetch(`${API_URL}/admin/system-materials/${materialId}`, {
-        method: "DELETE",
-        headers,
-      });
-      if (resp.ok) {
-        setSystemMaterials(prev => prev.filter(m => m.id !== materialId));
-      }
-    } catch (err) {
-      console.error("Error deleting material:", err);
-    }
+      await fetch(`${API_URL}/admin/system-materials/${materialId}`, { method: "DELETE", headers });
+      setSystemMaterials(prev => prev.filter(m => m.id !== materialId));
+    } catch (err) { console.error("Error deleting material:", err); }
   };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     setSearchResults(null);
-
     try {
       const headers = await getAuthHeaders();
       const resp = await fetch(`${API_URL}/admin/rag-search`, {
@@ -401,26 +528,52 @@ export default function AdminPage() {
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({ query: searchQuery, top_k: 5 }),
       });
-
-      if (!resp.ok) {
-        const err = await resp.json();
-        throw new Error(err.detail || "Search failed");
-      }
-
-      const data = await resp.json();
-      setSearchResults(data);
+      if (!resp.ok) throw new Error((await resp.json()).detail || "Search failed");
+      setSearchResults(await resp.json());
     } catch (err) {
       setSearchResults({ error: err.message });
-    } finally {
-      setSearching(false);
-    }
+    } finally { setSearching(false); }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleUpload(file);
+    if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]);
+  };
+
+  const handlePreview = async (materialId, title) => {
+    try {
+      const headers = await getAuthHeaders();
+      const detailResp = await fetch(`${API_URL}/admin/system-materials/${materialId}/detail`, { headers });
+      if (!detailResp.ok) return;
+      const detail = await detailResp.json();
+
+      // Clean up old blob
+      if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); }
+
+      setPreviewModal({ ...detail, title });
+
+      if (detail.has_file && detail.file_type === "pdf") {
+        const fileResp = await fetch(`${API_URL}/admin/system-materials/${materialId}/download`, { headers });
+        if (fileResp.ok) {
+          const blob = await fileResp.blob();
+          setPreviewBlobUrl(URL.createObjectURL(blob));
+        }
+      }
+    } catch (err) { console.error("Preview error:", err); }
+  };
+
+  const handleDownload = async (materialId, title) => {
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_URL}/admin/system-materials/${materialId}/download`, { headers });
+      if (!resp.ok) { alert((await resp.json()).detail || "Download failed"); return; }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = title; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) { console.error("Download error:", err); }
   };
 
   const formatBytes = (bytes) => {
@@ -430,11 +583,113 @@ export default function AdminPage() {
     return `${(bytes / 1048576).toFixed(1)} MB`;
   };
 
+  // ── Tree modal ─────────────────────────────────────────────
+
+  const openTreeModal = async (materialId, title) => {
+    setTreeLoading(true);
+    setTreeModal({ title, data: null });
+    setExpandedNodes(new Set());
+    setSelectedChunk(null);
+    setChunkDetail(null);
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_URL}/admin/documents/${materialId}/tree`, { headers });
+      if (!resp.ok) throw new Error((await resp.json()).detail || "Failed to load tree");
+      const data = await resp.json();
+      setTreeModal({ title, data });
+    } catch (err) {
+      setTreeModal({ title, error: err.message });
+    } finally { setTreeLoading(false); }
+  };
+
+  const toggleNode = (nodeId) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  };
+
+  const loadChunkDetail = async (chunkId) => {
+    setSelectedChunk(chunkId);
+    setChunkDetail(null);
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_URL}/admin/chunks/${chunkId}`, { headers });
+      if (resp.ok) setChunkDetail(await resp.json());
+    } catch (err) { console.error("Error loading chunk:", err); }
+  };
+
+  // ── Render tree ────────────────────────────────────────────
+
+  const renderTreeNodes = (nodes, parentId = null, depth = 0) => {
+    const children = nodes.filter(n =>
+      parentId === null ? n.node_type === "root" : n.parent_id === parentId
+    );
+
+    return children.map(node => {
+      const hasChunks = node.chunks && node.chunks.length > 0;
+      const hasChildren = nodes.some(n => n.parent_id === node.id);
+      const isExpanded = expandedNodes.has(node.id);
+      const canExpand = hasChunks || hasChildren;
+
+      const label = node.ordinal_label
+        ? `${node.ordinal_label}. ${node.heading_text || ""}`
+        : node.heading_text || node.node_type;
+
+      return (
+        <TreeNode key={node.id} $depth={depth}>
+          <TreeRow
+            $hasChunks={canExpand}
+            onClick={() => canExpand && toggleNode(node.id)}
+          >
+            {canExpand ? (
+              isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+            ) : <span style={{ width: 14 }} />}
+            <TreeLabel $isHeading={node.depth < 3}>{label}</TreeLabel>
+            <TreeMeta>
+              {node.token_count ? `${node.token_count} tok` : ""}
+              {hasChunks ? ` · ${node.chunks.length} chunk${node.chunks.length > 1 ? 's' : ''}` : ""}
+            </TreeMeta>
+          </TreeRow>
+
+          {isExpanded && hasChunks && (
+            <ChunkList>
+              {node.chunks.map(c => (
+                <ChunkItem
+                  key={c.id}
+                  onClick={(e) => { e.stopPropagation(); loadChunkDetail(c.id); }}
+                  style={{
+                    background: selectedChunk === c.id ? '#f0f4ff' : undefined,
+                    borderColor: selectedChunk === c.id ? '#20359A' : undefined,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 500 }}>
+                      Chunk #{c.chunk_index}
+                      <Badge $variant="default" style={{ marginLeft: 6 }}>{c.chunk_kind}</Badge>
+                    </span>
+                    <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                      {c.token_count} tok · p.{c.page_start}{c.page_end && c.page_end !== c.page_start ? `-${c.page_end}` : ""}
+                    </span>
+                  </div>
+                  <ChunkPreview>{c.content_preview}…</ChunkPreview>
+                </ChunkItem>
+              ))}
+            </ChunkList>
+          )}
+
+          {isExpanded && renderTreeNodes(nodes, node.id, depth + 1)}
+        </TreeNode>
+      );
+    });
+  };
+
   // ── Render tabs ────────────────────────────────────────────
 
-  const renderRagTab = () => (
+  const renderDocsTab = () => (
     <>
-      {/* ── Upload area ── */}
       <Section>
         <SectionTitle>Upload System Document</SectionTitle>
         {uploadStatus && (
@@ -450,15 +705,14 @@ export default function AdminPage() {
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
         >
-          {uploading ? (
-            <Loader2 size={32} color="#20359A" style={{ animation: "spin 1s linear infinite" }} />
-          ) : (
-            <Upload size={32} color="#9ca3af" />
-          )}
+          {uploading
+            ? <Loader2 size={32} color="#20359A" style={{ animation: "spin 1s linear infinite" }} />
+            : <Upload size={32} color="#9ca3af" />
+          }
           <p style={{ margin: "12px 0 0", color: "#374151", fontWeight: 500 }}>
             {uploading ? "Uploading..." : "Drop a file here or click to browse"}
           </p>
-          <UploadHint>PDF, DOCX, DOC, or TXT. System documents are visible to all users.</UploadHint>
+          <UploadHint>PDF, DOCX, DOC, or TXT — visible to all users.</UploadHint>
         </UploadArea>
         <FileInput
           type="file"
@@ -468,7 +722,6 @@ export default function AdminPage() {
         />
       </Section>
 
-      {/* ── Document list ── */}
       <Section>
         <SectionTitle>
           System Documents
@@ -512,9 +765,21 @@ export default function AdminPage() {
                     <Td>{m.chunk_count ?? "—"}</Td>
                     <Td>{m.uploaded_at ? new Date(m.uploaded_at).toLocaleDateString() : "—"}</Td>
                     <Td>
-                      <DangerButton onClick={() => handleDeleteSystemMaterial(m.id, m.title)}>
-                        <Trash2 size={14} /> Delete
-                      </DangerButton>
+                      <div style={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                        {m.status === "processed" && (
+                          <>
+                            <IconButton onClick={() => handlePreview(m.id, m.title)}>
+                              <Eye size={14} /> Preview
+                            </IconButton>
+                            <IconButton onClick={() => openTreeModal(m.id, m.title)}>
+                              <ChevronRight size={14} /> Tree
+                            </IconButton>
+                          </>
+                        )}
+                        <DangerButton onClick={() => handleDeleteSystemMaterial(m.id, m.title)}>
+                          <Trash2 size={14} /> Delete
+                        </DangerButton>
+                      </div>
                     </Td>
                   </tr>
                 ))}
@@ -529,90 +794,91 @@ export default function AdminPage() {
           </SecondaryButton>
         )}
       </Section>
-
-      {/* ── Search test ── */}
-      <Section>
-        <SectionTitle>Test RAG Retrieval</SectionTitle>
-        <SearchBox>
-          <Input
-            placeholder="Enter a search query to test retrieval..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          />
-          <PrimaryButton onClick={handleSearch} disabled={searching || !searchQuery.trim()}>
-            {searching ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : <Search size={16} />}
-            Search
-          </PrimaryButton>
-        </SearchBox>
-
-        {searchResults && searchResults.error && (
-          <StatusMessage $type="error">
-            <AlertCircle size={16} />
-            {searchResults.error}
-          </StatusMessage>
-        )}
-
-        {searchResults && !searchResults.error && (
-          <>
-            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-              {searchResults.total_results} result(s) for "{searchResults.query}"
-            </p>
-            {searchResults.results?.map((r, i) => (
-              <ResultCard key={r.chunk_id || i}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 600, fontSize: 14, color: "#1a1a1a" }}>
-                    {r.document_title || "Unknown Document"}
-                  </span>
-                  <ScoreBadge $score={r.score}>
-                    {(r.score * 100).toFixed(1)}% match
-                  </ScoreBadge>
-                </div>
-                {r.heading_path && (
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                    {r.heading_path}
-                  </div>
-                )}
-                <ResultContent>{r.content}</ResultContent>
-                <ResultMeta>
-                  {r.chunk_kind && <span>Kind: {r.chunk_kind}</span>}
-                  {r.page_start != null && <span>Pages: {r.page_start}{r.page_end && r.page_end !== r.page_start ? `-${r.page_end}` : ''}</span>}
-                  {r.token_count && <span>Tokens: {r.token_count}</span>}
-                </ResultMeta>
-              </ResultCard>
-            ))}
-            {searchResults.results?.length === 0 && (
-              <EmptyState>
-                <p>No results found.</p>
-                <p>Make sure system documents have been uploaded and processed.</p>
-              </EmptyState>
-            )}
-          </>
-        )}
-      </Section>
     </>
+  );
+
+  const renderRagTab = () => (
+    <Section>
+      <SectionTitle>Test RAG Retrieval</SectionTitle>
+      <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+        Query the pgvector pipeline against all system documents.
+      </p>
+      <SearchBox>
+        <Input
+          placeholder="Enter a search query..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+        />
+        <PrimaryButton onClick={handleSearch} disabled={searching || !searchQuery.trim()}>
+          {searching ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : <Search size={16} />}
+          Search
+        </PrimaryButton>
+      </SearchBox>
+
+      {searchResults && searchResults.error && (
+        <StatusMessage $type="error">
+          <AlertCircle size={16} />
+          {searchResults.error}
+        </StatusMessage>
+      )}
+
+      {searchResults && !searchResults.error && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <span style={{ fontSize: 13, color: "#6b7280" }}>
+              {searchResults.total_results} result(s) for "{searchResults.query}"
+            </span>
+            {searchResults.timing_ms && (
+              <span style={{ fontSize: 12, color: "#9ca3af", fontFamily: "monospace" }}>
+                {searchResults.timing_ms.total}ms total
+                (embed: {searchResults.timing_ms.embedder}ms, search: {searchResults.timing_ms.search}ms)
+              </span>
+            )}
+          </div>
+          {searchResults.results?.map((r, i) => (
+            <ResultCard key={r.chunk_id || i}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 600, fontSize: 14, color: "#1a1a1a" }}>
+                  {r.document_title || "Unknown Document"}
+                </span>
+                <ScoreBadge $score={r.score}>
+                  {(r.score * 100).toFixed(1)}% match
+                </ScoreBadge>
+              </div>
+              {r.heading_path && (
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{r.heading_path}</div>
+              )}
+              <ResultContent>{r.content}</ResultContent>
+              <ResultMeta>
+                {r.chunk_kind && <span>Kind: {r.chunk_kind}</span>}
+                {r.page_start != null && <span>Pages: {r.page_start}{r.page_end && r.page_end !== r.page_start ? `-${r.page_end}` : ''}</span>}
+                {r.token_count && <span>Tokens: {r.token_count}</span>}
+              </ResultMeta>
+            </ResultCard>
+          ))}
+          {searchResults.results?.length === 0 && (
+            <EmptyState>
+              <p>No results found.</p>
+              <p>Make sure system documents have been uploaded and processed.</p>
+            </EmptyState>
+          )}
+        </>
+      )}
+    </Section>
   );
 
   const renderUsersTab = () => (
     <Section>
       <SectionTitle>All Users</SectionTitle>
       {users.length === 0 ? (
-        <EmptyState>
-          <Users size={32} />
-          <p>Loading users...</p>
-        </EmptyState>
+        <EmptyState><Users size={32} /><p>Loading users...</p></EmptyState>
       ) : (
         <Card style={{ padding: 0, overflow: "hidden" }}>
           <Table>
             <thead>
               <tr>
-                <Th>ID</Th>
-                <Th>Email</Th>
-                <Th>Name</Th>
-                <Th>Specialty</Th>
-                <Th>Roles</Th>
-                <Th>Status</Th>
-                <Th>Joined</Th>
+                <Th>ID</Th><Th>Email</Th><Th>Name</Th><Th>Specialty</Th><Th>Roles</Th><Th>Status</Th><Th>Joined</Th>
               </tr>
             </thead>
             <tbody>
@@ -624,17 +890,11 @@ export default function AdminPage() {
                   <Td>{u.specialty || "—"}</Td>
                   <Td>
                     {u.roles?.map(r => (
-                      <Badge key={r} $variant={r === "admin" ? "admin" : "default"} style={{ marginRight: 4 }}>
-                        {r}
-                      </Badge>
+                      <Badge key={r} $variant={r === "admin" ? "admin" : "default"} style={{ marginRight: 4 }}>{r}</Badge>
                     ))}
                     {(!u.roles || u.roles.length === 0) && <span style={{ color: "#9ca3af" }}>user</span>}
                   </Td>
-                  <Td>
-                    <Badge $variant={u.is_active ? "success" : "error"}>
-                      {u.is_active ? "active" : "inactive"}
-                    </Badge>
-                  </Td>
+                  <Td><Badge $variant={u.is_active ? "success" : "error"}>{u.is_active ? "active" : "inactive"}</Badge></Td>
                   <Td>{u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}</Td>
                 </tr>
               ))}
@@ -652,7 +912,6 @@ export default function AdminPage() {
         <h3 style={{ color: "#6b7280", margin: "12px 0 4px" }}>Practice Questions</h3>
         <p style={{ color: "#9ca3af", fontSize: 14 }}>
           Question generation and management will be available here.
-          This feature is currently being designed.
         </p>
       </PlaceholderCard>
     </Section>
@@ -671,9 +930,135 @@ export default function AdminPage() {
         ))}
       </Tabs>
 
+      {activeTab === "docs" && renderDocsTab()}
       {activeTab === "rag" && renderRagTab()}
       {activeTab === "users" && renderUsersTab()}
       {activeTab === "questions" && renderQuestionsTab()}
+
+      {/* ── Tree Modal ── */}
+      {treeModal && (
+        <ModalOverlay onClick={() => setTreeModal(null)}>
+          <ModalContent onClick={(e) => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>{treeModal.title} — Document Structure</ModalTitle>
+              <CloseButton onClick={() => setTreeModal(null)}><X size={18} /></CloseButton>
+            </ModalHeader>
+            <ModalBody>
+              {treeLoading && (
+                <EmptyState><Loader2 size={24} style={{ animation: "spin 1s linear infinite" }} /><p>Loading...</p></EmptyState>
+              )}
+              {treeModal.error && (
+                <StatusMessage $type="error"><AlertCircle size={16} />{treeModal.error}</StatusMessage>
+              )}
+              {treeModal.data && (
+                <>
+                  <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+                    {treeModal.data.page_count} pages · {treeModal.data.total_nodes} nodes · {treeModal.data.total_chunks} chunks
+                  </div>
+
+                  <div style={{ display: "flex", gap: 0, height: "calc(85vh - 140px)" }}>
+                    {/* Left: tree (scrollable) */}
+                    <div style={{ flex: 1, minWidth: 0, overflowY: "auto", paddingRight: 16 }}>
+                      {renderTreeNodes(treeModal.data.nodes)}
+                    </div>
+
+                    {/* Right: chunk detail (fixed dimensions) */}
+                    {chunkDetail && (
+                      <div style={{
+                        width: 440, flexShrink: 0,
+                        borderLeft: "1px solid #e5e7eb", paddingLeft: 20,
+                        display: "flex", flexDirection: "column",
+                      }}>
+                        {/* Header: heading + close */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, flexShrink: 0 }}>
+                          <div style={{ fontSize: 12, color: "#6b7280", flex: 1 }}>
+                            {chunkDetail.chunk?.heading_path}
+                          </div>
+                          <CloseButton onClick={() => { setChunkDetail(null); setSelectedChunk(null); }} style={{ marginLeft: 8 }}>
+                            <X size={16} />
+                          </CloseButton>
+                        </div>
+
+                        {/* Meta */}
+                        <div style={{ flexShrink: 0, marginBottom: 8 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                            Chunk #{chunkDetail.chunk?.chunk_index}
+                            <Badge $variant="default" style={{ marginLeft: 6 }}>{chunkDetail.chunk?.chunk_kind}</Badge>
+                          </div>
+                          <ResultMeta style={{ marginTop: 0 }}>
+                            <span>{chunkDetail.chunk?.token_count} tokens</span>
+                            <span>Pages {chunkDetail.chunk?.page_start}-{chunkDetail.chunk?.page_end}</span>
+                          </ResultMeta>
+                        </div>
+
+                        {/* Content (scrollable, fills remaining space) */}
+                        <ChunkDetail style={{ flex: 1, minHeight: 0, marginTop: 0 }}>
+                          {chunkDetail.chunk?.content}
+                        </ChunkDetail>
+
+                        {/* Nav buttons (always at bottom) */}
+                        <div style={{ display: "flex", gap: 8, marginTop: 8, flexShrink: 0 }}>
+                          {chunkDetail.prev_chunk_id && (
+                            <ChunkNavButton onClick={() => loadChunkDetail(chunkDetail.prev_chunk_id)}>
+                              ← Prev chunk
+                            </ChunkNavButton>
+                          )}
+                          {chunkDetail.next_chunk_id && (
+                            <ChunkNavButton onClick={() => loadChunkDetail(chunkDetail.next_chunk_id)}>
+                              Next chunk →
+                            </ChunkNavButton>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </ModalBody>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* ── Preview Modal ── */}
+      {previewModal && (
+        <ModalOverlay onClick={() => { setPreviewModal(null); if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); } }}>
+          <ModalContent onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1100 }}>
+            <ModalHeader>
+              <ModalTitle>{previewModal.title}</ModalTitle>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {previewModal.has_file && (
+                  <SecondaryButton onClick={() => handleDownload(previewModal.id, previewModal.title)}>
+                    Download
+                  </SecondaryButton>
+                )}
+                <CloseButton onClick={() => { setPreviewModal(null); if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); } }}>
+                  <X size={18} />
+                </CloseButton>
+              </div>
+            </ModalHeader>
+            <ModalBody>
+              {previewBlobUrl && previewModal.file_type === "pdf" ? (
+                <iframe
+                  src={previewBlobUrl}
+                  title={previewModal.title}
+                  style={{ width: "100%", height: "70vh", border: "1px solid #e5e7eb", borderRadius: 8 }}
+                />
+              ) : previewModal.extracted_text ? (
+                <pre style={{
+                  whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  maxHeight: "70vh", overflow: "auto", padding: 16,
+                  background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb",
+                  fontSize: 14, lineHeight: 1.6,
+                }}>
+                  {previewModal.extracted_text}
+                </pre>
+              ) : (
+                <EmptyState><p>No content available.</p></EmptyState>
+              )}
+            </ModalBody>
+          </ModalContent>
+        </ModalOverlay>
+      )}
 
       <style>{`
         @keyframes spin {

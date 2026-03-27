@@ -330,6 +330,8 @@ def get_chunk_with_context(chunk_id: str, db: Session) -> dict[str, Any] | None:
             "heading_text": node.heading_text if node else None,
             "depth": node.depth if node else None,
         },
+        "prev_chunk_id": str(chunk.prev_chunk_id) if chunk.prev_chunk_id else None,
+        "next_chunk_id": str(chunk.next_chunk_id) if chunk.next_chunk_id else None,
         "prev_content": prev_chunk.content if prev_chunk else None,
         "next_content": next_chunk.content if next_chunk else None,
     }
