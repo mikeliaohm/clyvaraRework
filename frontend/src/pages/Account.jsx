@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { supabase } from "../utils/supabaseClient";
-import { useNavigate } from "react-router-dom";
+
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -161,7 +161,7 @@ export default function Account() {
   const [schoolSearch, setSchoolSearch] = useState("");
   const [showSchoolSuggestions, setShowSchoolSuggestions] = useState(false);
   const [filteredSchools, setFilteredSchools] = useState([]);
-  const navigate = useNavigate();
+
 
   useEffect(() => {
   const load = async () => {
@@ -264,11 +264,6 @@ export default function Account() {
 
 
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    navigate("/login");
-  };
-
   const handleSchoolSelect = (school) => {
     setProfile({ ...profile, institution: school });
     setSchoolSearch(school);
@@ -363,7 +358,6 @@ export default function Account() {
           <Button $primary onClick={handleSave} disabled={loading}>
             {loading ? "Saving..." : "Save Profile"}
           </Button>
-          <Button onClick={handleSignOut}>Sign out</Button>
         </Row>
       </Card>
     </Container>
