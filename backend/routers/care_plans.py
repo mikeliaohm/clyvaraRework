@@ -1,13 +1,11 @@
 from typing import Dict
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from config import openai_client, SYSTEM_USER_ID
-from database import get_db, CarePlan, VectorIndexEntry
+from database import get_db, CarePlan
 from deps import get_current_user
-from rag.extraction import generate_embeddings
 
 router = APIRouter(prefix="/api/care-plans", tags=["care-plans"])
 
@@ -37,68 +35,29 @@ def build_care_plan_text(care_plan_data: dict) -> str:
     return "\n".join(sections)
 
 
-async def index_care_plan_for_rag(care_plan: CarePlan, db: Session) -> None:
-    try:
-        if not care_plan.exported_text:
-            return
-        embedding = generate_embeddings(care_plan.exported_text)
-        db.add(VectorIndexEntry(
-            user_id=care_plan.user_id,
-            content_hash=f"care_plan_{care_plan.id}",
-            embedding=embedding,
-            content=care_plan.exported_text,
-            token_count=len(care_plan.exported_text.split()),
-            chunk_index=0,
-            source_type="care_plan",
-            source_id=care_plan.id,
-            embedding_model="text-embedding-3-small",
-            vector_metadata={
-                "care_plan_id": care_plan.id,
-                "patient_name": care_plan.patient_name,
-                "procedure": care_plan.procedure,
-                "diagnosis": care_plan.diagnosis,
-                "created_at": care_plan.created_at.isoformat() if care_plan.created_at else None,
-            },
-        ))
-        db.commit()
-    except Exception as e:
-        print(f"Error indexing care plan for RAG: {e}")
-
-
 def build_care_plan_context(care_plan: CarePlan, db: Session) -> str:
+    """Build context for care plan recommendations using the RAG pipeline."""
     try:
+        from rag.embedder import get_embedder
+        from rag.pipeline import search_chunks
+
         query_text = f"{care_plan.diagnosis} {care_plan.procedure} anesthesia care plan"
-        query_embedding = generate_embeddings(query_text)
-
-        vector_entries = db.query(VectorIndexEntry).filter(
-            or_(
-                VectorIndexEntry.user_id == care_plan.user_id,
-                VectorIndexEntry.user_id == SYSTEM_USER_ID,
-            )
-        ).all()
-
-        results = sorted(
-            [
-                {
-                    "content": e.content,
-                    "similarity": sum(a * b for a, b in zip(query_embedding, e.embedding)),
-                    "metadata": e.vector_metadata,
-                    "is_system": e.user_id == SYSTEM_USER_ID,
-                }
-                for e in vector_entries
-            ],
-            key=lambda x: x["similarity"],
-            reverse=True,
-        )[:5]
+        embedder = get_embedder()
+        results = search_chunks(
+            query=query_text,
+            user_id=care_plan.user_id,
+            db=db,
+            embedder=embedder,
+            top_k=5,
+        )
 
         context_parts = [f"Patient Care Plan:\n{care_plan.exported_text}"]
         if results:
             context_parts.append("\nRelevant Medical Literature:")
             for i, r in enumerate(results, 1):
-                label = "System Textbook" if r.get("is_system") else "User Material"
-                context_parts.append(
-                    f"\n{i}. From {r['metadata'].get('file_name', 'Unknown Source')} ({label}):\n{r['content'][:300]}..."
-                )
+                title = r.get("document_title", "Unknown Source")
+                content = r.get("content", "")[:300]
+                context_parts.append(f"\n{i}. From {title}:\n{content}...")
         return "\n".join(context_parts)
     except Exception as e:
         print(f"Error building care plan context: {e}")
@@ -219,7 +178,6 @@ async def create_care_plan(
         db.add(care_plan)
         db.commit()
         db.refresh(care_plan)
-        await index_care_plan_for_rag(care_plan, db)
         return {"success": True, "care_plan_id": care_plan.id, "message": "Care plan created successfully"}
     except Exception as e:
         db.rollback()
@@ -404,11 +362,6 @@ async def delete_care_plan(
 
         if not care_plan:
             raise HTTPException(status_code=404, detail="Care plan not found")
-
-        db.query(VectorIndexEntry).filter(
-            VectorIndexEntry.source_id == care_plan_id,
-            VectorIndexEntry.source_type == "care_plan",
-        ).delete()
 
         db.delete(care_plan)
         db.commit()

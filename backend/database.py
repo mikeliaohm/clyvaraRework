@@ -202,29 +202,6 @@ class Material(Base):
     last_accessed = Column(DateTime)
 
 
-class VectorIndexEntry(Base):
-    __tablename__ = "vector_index_entries"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String, nullable=False)
-    content_hash = Column(String(64), unique=True)
-    embedding = Column(JSON, nullable=False)
-    content = Column(Text, nullable=False)
-    token_count = Column(Integer, default=0)
-    chunk_index = Column(Integer, default=0)
-
-    source_type = Column(String(50), nullable=False)
-    source_id = Column(Integer)
-
-    vector_metadata = Column(JSON, default=dict)
-    embedding_model = Column(String, default="text-embedding-3-small")
-
-    created_at = Column(DateTime, server_default=func.now())
-    last_accessed = Column(DateTime)
-    access_count = Column(Integer, default=0)
-    relevance_score = Column(DECIMAL)
-
-
 # ---------------------------------------------------------------------------
 # Learning Plans
 # ---------------------------------------------------------------------------

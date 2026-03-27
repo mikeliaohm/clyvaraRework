@@ -4,13 +4,11 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from config import openai_client, SYSTEM_USER_ID
-from database import get_db, ChatMessage, Material, UserSession, VectorIndexEntry
+from database import get_db, ChatMessage, UserSession
 from deps import get_current_user
-from rag.extraction import generate_embeddings
 
 router = APIRouter()
 
@@ -221,57 +219,27 @@ def chat_with_rag(
     relevant_context = ""
 
     try:
-        query_embedding = generate_embeddings(payload.message)
+        from rag.embedder import get_embedder
+        from rag.pipeline import search_chunks
 
-        user_materials = db.query(Material).filter(
-            or_(Material.user_id == current_user["user_id"], Material.user_id == SYSTEM_USER_ID),
-            Material.status == "processed",
-        ).all()
+        embedder = get_embedder()
+        results = search_chunks(
+            query=payload.message,
+            user_id=current_user["user_id"],
+            db=db,
+            embedder=embedder,
+            top_k=5,
+        )
 
-        if user_materials:
-            material_ids = [m.id for m in user_materials]
-            vector_entries = db.query(VectorIndexEntry).filter(
-                VectorIndexEntry.source_id.in_(material_ids),
-                VectorIndexEntry.source_type == "material",
-                or_(
-                    VectorIndexEntry.user_id == current_user["user_id"],
-                    VectorIndexEntry.user_id == SYSTEM_USER_ID,
-                ),
-            ).all()
-
-            results = sorted(
-                [
-                    {
-                        "content": e.content,
-                        "similarity": sum(a * b for a, b in zip(query_embedding, e.embedding)),
-                        "metadata": e.vector_metadata,
-                        "is_system": e.user_id == SYSTEM_USER_ID,
-                    }
-                    for e in vector_entries
-                ],
-                key=lambda x: x["similarity"],
-                reverse=True,
-            )[:5]
-
-            if results:
-                relevant_context = "\n\nRelevant information from available materials:\n"
-                for i, r in enumerate(results, 1):
-                    label = "System Textbook" if r.get("is_system") else "Your Upload"
-                    relevant_context += f"\n{i}. From {r['metadata'].get('file_name', 'Unknown')} ({label}):\n{r['content'][:500]}...\n"
-
-                for entry in vector_entries:
-                    if entry.user_id != SYSTEM_USER_ID and any(entry.content == r["content"] for r in results):
-                        entry.last_accessed = func.now()
-                        entry.access_count += 1
-                db.commit()
+        if results:
+            relevant_context = "\n\nRelevant information from available materials:\n"
+            for i, r in enumerate(results, 1):
+                title = r.get("document_title", "Unknown")
+                content = r.get("content", "")[:500]
+                relevant_context += f"\n{i}. From {title}:\n{content}...\n"
 
     except Exception as e:
-        error_msg = str(e)
-        print(f"RAG search error: {error_msg}")
-        if "403" in error_msg or "forbidden" in error_msg.lower():
-            print("⚠️  OpenAI API key issue (403). Chatbot will work without RAG context.")
-        elif "401" in error_msg or "invalid_api_key" in error_msg.lower():
-            print("⚠️  Invalid OpenAI API key. Chatbot will work without RAG context.")
+        print(f"RAG search error: {e}")
 
     system_prompt = f"""You are a helpful AI assistant for Clyvara, a medical education platform.
 

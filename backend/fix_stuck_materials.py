@@ -10,7 +10,8 @@ This script will:
 
 import sys
 from datetime import datetime, timedelta
-from database import get_db, Material, VectorIndexEntry
+from database import get_db, Material
+from models.rag import RagDocument
 from sqlalchemy.orm import Session
 
 def check_stuck_materials():
@@ -38,9 +39,9 @@ def check_stuck_materials():
         hours = time_diff.total_seconds() / 3600
         
         # Check if there are any vector entries (means processing started)
-        vector_count = db.query(VectorIndexEntry).filter(
-            VectorIndexEntry.source_id == m.id,
-            VectorIndexEntry.source_type == 'material'
+        vector_count = db.query(RagDocument).filter(
+            RagDocument.material_id == m.id,
+
         ).count()
         
         print(f"📄 {m.title}")
@@ -81,9 +82,9 @@ def clean_stuck_materials(stuck_materials, action='mark_failed'):
         
         if action == 'delete':
             # Delete vector entries first
-            vectors = db.query(VectorIndexEntry).filter(
-                VectorIndexEntry.source_id == m.id,
-                VectorIndexEntry.source_type == 'material'
+            vectors = db.query(RagDocument).filter(
+                RagDocument.material_id == m.id,
+    
             ).all()
             
             for v in vectors:
@@ -157,9 +158,9 @@ def remove_duplicates():
     # Delete duplicates
     for m in to_delete:
         # Delete vector entries first
-        vectors = db.query(VectorIndexEntry).filter(
-            VectorIndexEntry.source_id == m.id,
-            VectorIndexEntry.source_type == 'material'
+        vectors = db.query(RagDocument).filter(
+            RagDocument.material_id == m.id,
+
         ).all()
         
         for v in vectors:

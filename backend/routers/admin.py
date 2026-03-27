@@ -130,8 +130,8 @@ def delete_system_material(
 ):
     _enforce_admin_access(db, current_user, x_admin_key)
 
-    from database import VectorIndexEntry
-    from material_cache import invalidate_cache, invalidate_vector_cache
+    from material_cache import invalidate_cache
+    from models.rag import RagDocument, RagChunk, RagNode
 
     material = db.query(Material).filter(
         Material.id == material_id,
@@ -141,12 +141,13 @@ def delete_system_material(
         raise HTTPException(status_code=404, detail="System material not found")
 
     invalidate_cache(material_id)
-    invalidate_vector_cache(material_id)
 
-    db.query(VectorIndexEntry).filter(
-        VectorIndexEntry.source_id == material_id,
-        VectorIndexEntry.source_type == "material",
-    ).delete()
+    # Clean up RAG pipeline data
+    rag_doc = db.query(RagDocument).filter(RagDocument.material_id == material_id).first()
+    if rag_doc:
+        db.query(RagChunk).filter(RagChunk.document_id == rag_doc.id).delete()
+        db.query(RagNode).filter(RagNode.document_id == rag_doc.id).delete()
+        db.delete(rag_doc)
 
     db.delete(material)
     db.commit()

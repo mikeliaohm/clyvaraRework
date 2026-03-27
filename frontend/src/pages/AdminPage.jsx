@@ -300,15 +300,14 @@ export default function AdminPage() {
   const fileInputRef = useRef();
 
   const tabs = [
-    { id: "rag",   label: "RAG Upload & Test", icon: Search },
-    { id: "docs",  label: "System Documents",  icon: FileText },
-    { id: "users", label: "Users",             icon: Users },
-    { id: "questions", label: "Questions",      icon: ClipboardList },
+    { id: "rag",       label: "Documents & RAG", icon: FileText },
+    { id: "users",     label: "Users",           icon: Users },
+    { id: "questions", label: "Questions",        icon: ClipboardList },
   ];
 
   useEffect(() => {
     if (activeTab === "users") loadUsers();
-    if (activeTab === "docs" || activeTab === "rag") loadSystemMaterials();
+    if (activeTab === "rag") loadSystemMaterials();
   }, [activeTab]);
 
   const getAuthHeaders = async () => {
@@ -435,6 +434,7 @@ export default function AdminPage() {
 
   const renderRagTab = () => (
     <>
+      {/* ── Upload area ── */}
       <Section>
         <SectionTitle>Upload System Document</SectionTitle>
         {uploadStatus && (
@@ -466,16 +466,71 @@ export default function AdminPage() {
           onChange={(e) => handleUpload(e.target.files[0])}
           accept=".pdf,.txt,.doc,.docx"
         />
+      </Section>
 
-        {systemMaterials.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
-              {systemMaterials.filter(m => m.status === "processed").length} system document(s) indexed
-            </p>
-          </div>
+      {/* ── Document list ── */}
+      <Section>
+        <SectionTitle>
+          System Documents
+          {systemMaterials.length > 0 && (
+            <span style={{ fontWeight: 400, fontSize: 14, color: "#6b7280", marginLeft: 8 }}>
+              ({systemMaterials.filter(m => m.status === "processed").length} indexed)
+            </span>
+          )}
+        </SectionTitle>
+
+        {systemMaterials.length === 0 ? (
+          <EmptyState>
+            <FileText size={28} />
+            <p>No system documents yet. Upload one above.</p>
+          </EmptyState>
+        ) : (
+          <Card style={{ padding: 0, overflow: "hidden" }}>
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Title</Th>
+                  <Th>Type</Th>
+                  <Th>Size</Th>
+                  <Th>Status</Th>
+                  <Th>Chunks</Th>
+                  <Th>Uploaded</Th>
+                  <Th></Th>
+                </tr>
+              </thead>
+              <tbody>
+                {systemMaterials.map((m) => (
+                  <tr key={m.id}>
+                    <Td style={{ fontWeight: 500 }}>{m.title}</Td>
+                    <Td>{m.file_type?.toUpperCase()}</Td>
+                    <Td>{formatBytes(m.file_size)}</Td>
+                    <Td>
+                      <Badge $variant={m.status === "processed" ? "success" : m.status === "processing" ? "processing" : m.status === "failed" ? "error" : "default"}>
+                        {m.status}
+                      </Badge>
+                    </Td>
+                    <Td>{m.chunk_count ?? "—"}</Td>
+                    <Td>{m.uploaded_at ? new Date(m.uploaded_at).toLocaleDateString() : "—"}</Td>
+                    <Td>
+                      <DangerButton onClick={() => handleDeleteSystemMaterial(m.id, m.title)}>
+                        <Trash2 size={14} /> Delete
+                      </DangerButton>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Card>
+        )}
+
+        {systemMaterials.some(m => m.status === "processing") && (
+          <SecondaryButton onClick={loadSystemMaterials} style={{ marginTop: 8 }}>
+            <Loader2 size={14} /> Refresh status
+          </SecondaryButton>
         )}
       </Section>
 
+      {/* ── Search test ── */}
       <Section>
         <SectionTitle>Test RAG Retrieval</SectionTitle>
         <SearchBox>
@@ -521,7 +576,7 @@ export default function AdminPage() {
                 <ResultContent>{r.content}</ResultContent>
                 <ResultMeta>
                   {r.chunk_kind && <span>Kind: {r.chunk_kind}</span>}
-                  {r.page_start != null && <span>Pages: {r.page_start}{r.page_end && r.page_end !== r.page_start ? `–${r.page_end}` : ''}</span>}
+                  {r.page_start != null && <span>Pages: {r.page_start}{r.page_end && r.page_end !== r.page_start ? `-${r.page_end}` : ''}</span>}
                   {r.token_count && <span>Tokens: {r.token_count}</span>}
                 </ResultMeta>
               </ResultCard>
@@ -536,55 +591,6 @@ export default function AdminPage() {
         )}
       </Section>
     </>
-  );
-
-  const renderDocsTab = () => (
-    <Section>
-      <SectionTitle>System Documents</SectionTitle>
-      {systemMaterials.length === 0 ? (
-        <EmptyState>
-          <FileText size={32} />
-          <p>No system documents uploaded yet.</p>
-        </EmptyState>
-      ) : (
-        <Card style={{ padding: 0, overflow: "hidden" }}>
-          <Table>
-            <thead>
-              <tr>
-                <Th>Title</Th>
-                <Th>Type</Th>
-                <Th>Size</Th>
-                <Th>Status</Th>
-                <Th>Chunks</Th>
-                <Th>Uploaded</Th>
-                <Th></Th>
-              </tr>
-            </thead>
-            <tbody>
-              {systemMaterials.map((m) => (
-                <tr key={m.id}>
-                  <Td style={{ fontWeight: 500 }}>{m.title}</Td>
-                  <Td>{m.file_type?.toUpperCase()}</Td>
-                  <Td>{formatBytes(m.file_size)}</Td>
-                  <Td>
-                    <Badge $variant={m.status === "processed" ? "success" : m.status === "processing" ? "processing" : m.status === "failed" ? "error" : "default"}>
-                      {m.status}
-                    </Badge>
-                  </Td>
-                  <Td>{m.chunk_count ?? "—"}</Td>
-                  <Td>{m.uploaded_at ? new Date(m.uploaded_at).toLocaleDateString() : "—"}</Td>
-                  <Td>
-                    <DangerButton onClick={() => handleDeleteSystemMaterial(m.id, m.title)}>
-                      <Trash2 size={14} /> Delete
-                    </DangerButton>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        </Card>
-      )}
-    </Section>
   );
 
   const renderUsersTab = () => (
@@ -666,7 +672,6 @@ export default function AdminPage() {
       </Tabs>
 
       {activeTab === "rag" && renderRagTab()}
-      {activeTab === "docs" && renderDocsTab()}
       {activeTab === "users" && renderUsersTab()}
       {activeTab === "questions" && renderQuestionsTab()}
 
