@@ -610,15 +610,19 @@ export default function AdminPage() {
       const detail = await detailResp.json();
 
       if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); }
-      setPreviewModal({ ...detail, title, _userMaterial: true });
 
+      // For PDFs, fetch blob before opening modal to avoid flash of raw text
+      let blobUrl = null;
       if (detail.has_file && detail.file_type === "pdf") {
         const fileResp = await fetch(`${API_URL}/admin/user-materials/${materialId}/download`, { headers });
         if (fileResp.ok) {
           const blob = await fileResp.blob();
-          setPreviewBlobUrl(URL.createObjectURL(blob));
+          blobUrl = URL.createObjectURL(blob);
         }
       }
+
+      setPreviewBlobUrl(blobUrl);
+      setPreviewModal({ ...detail, title, _userMaterial: true });
     } catch (err) { console.error("Preview error:", err); }
   };
 
@@ -685,15 +689,18 @@ export default function AdminPage() {
       // Clean up old blob
       if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null); }
 
-      setPreviewModal({ ...detail, title });
-
+      // For PDFs, fetch blob before opening modal to avoid flash of raw text
+      let blobUrl = null;
       if (detail.has_file && detail.file_type === "pdf") {
         const fileResp = await fetch(`${API_URL}/admin/system-materials/${materialId}/download`, { headers });
         if (fileResp.ok) {
           const blob = await fileResp.blob();
-          setPreviewBlobUrl(URL.createObjectURL(blob));
+          blobUrl = URL.createObjectURL(blob);
         }
       }
+
+      setPreviewBlobUrl(blobUrl);
+      setPreviewModal({ ...detail, title });
     } catch (err) { console.error("Preview error:", err); }
   };
 

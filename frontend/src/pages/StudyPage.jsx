@@ -7,6 +7,7 @@ import {
   Trash2,
   Eye,
   Download,
+  X,
 } from "lucide-react";
 import ChatBot from "../components/ChatBot.jsx";
 import { supabase } from "../utils/supabaseClient";
@@ -206,9 +207,9 @@ const ModalOverlay = styled.div`
 const ModalContent = styled.div`
   background: white;
   border-radius: 12px;
-  width: 95%;
+  width: 94%;
   max-width: 1100px;
-  max-height: 90vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
 `;
@@ -229,40 +230,33 @@ const ModalTitle = styled.h2`
 
 const ModalBody = styled.div`
   padding: 20px;
-  overflow: auto;
+  overflow: hidden;
   flex: 1;
-`;
-
-const ModalButtons = styled.div`
-  display: flex;
-  gap: 8px;
-  padding: 12px 20px;
-  border-top: 1px solid #e5e7eb;
-  justify-content: flex-end;
 `;
 
 const CloseButton = styled.button`
   all: unset;
   cursor: pointer;
-  padding: 6px 14px;
+  padding: 4px;
   border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  background: #f3f4f6;
-  color: #374151;
-  &:hover { background: #e5e7eb; }
+  color: #6b7280;
+  &:hover { background: #f3f4f6; color: #1a1a1a; }
 `;
 
-const DownloadButton = styled.button`
-  all: unset;
-  cursor: pointer;
-  padding: 6px 14px;
-  border-radius: 6px;
+const SecondaryButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  background: #10B981;
-  color: white;
-  &:hover { background: #059669; }
+  cursor: pointer;
+  transition: all 0.15s ease;
+  &:hover { background: #e5e7eb; }
 `;
 
 // ── Component ────────────────────────────────────────────────
@@ -336,15 +330,19 @@ export default function StudyPage() {
       const detailResp = await fetch(`${API_URL}/materials/${material.id}`, { headers });
       if (!detailResp.ok) return;
       const detail = await detailResp.json();
-      setSelectedMaterial({ ...material, ...detail });
 
+      // For PDFs, fetch the blob before opening the modal to avoid flash of raw text
+      let blobUrl = null;
       if (detail.has_file && detail.file_type === "pdf") {
         const fileResp = await fetch(`${API_URL}/materials/${material.id}/download`, { headers });
         if (fileResp.ok) {
           const blob = await fileResp.blob();
-          setPreviewBlobUrl(URL.createObjectURL(blob));
+          blobUrl = URL.createObjectURL(blob);
         }
       }
+
+      setPreviewBlobUrl(blobUrl);
+      setSelectedMaterial({ ...material, ...detail });
     } catch (err) { console.error("Preview error:", err); }
   };
 
@@ -484,6 +482,16 @@ export default function StudyPage() {
           <ModalContent onClick={(e) => e.stopPropagation()}>
             <ModalHeader>
               <ModalTitle>{selectedMaterial.title}</ModalTitle>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {selectedMaterial.has_file && (
+                  <SecondaryButton onClick={() => handleDownload(selectedMaterial.id, selectedMaterial.title)}>
+                    Download
+                  </SecondaryButton>
+                )}
+                <CloseButton onClick={closeModal}>
+                  <X size={18} />
+                </CloseButton>
+              </div>
             </ModalHeader>
             <ModalBody>
               {previewBlobUrl && selectedMaterial.file_type === "pdf" ? (
@@ -502,17 +510,9 @@ export default function StudyPage() {
                   {selectedMaterial.extracted_text}
                 </pre>
               ) : (
-                <EmptyState><p>Loading content...</p></EmptyState>
+                <EmptyState><p>No content available.</p></EmptyState>
               )}
             </ModalBody>
-            <ModalButtons>
-              {selectedMaterial.has_file && (
-                <DownloadButton onClick={() => handleDownload(selectedMaterial.id, selectedMaterial.title)}>
-                  Download
-                </DownloadButton>
-              )}
-              <CloseButton onClick={closeModal}>Close</CloseButton>
-            </ModalButtons>
           </ModalContent>
         </ModalOverlay>
       )}
