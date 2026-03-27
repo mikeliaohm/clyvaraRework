@@ -3,6 +3,8 @@ import styled from "styled-components";
 import { buildFormState } from "../utils/buildFormState";
 import { supabase } from "../utils/supabaseClient";
 
+const API_URL = import.meta.env.VITE_API_URL || "/api";
+
 const PageWrapper = styled.div`
   display: flex;
   flex-direction: column;
@@ -578,7 +580,7 @@ export default function CarePlanPage() {
         return;
       }
 
-      const response = await fetch("http://localhost:8000/api/care-plans", {
+      const response = await fetch(`${API_URL}/care-plans`, {
         headers: {
           "Authorization": `Bearer ${session.access_token}`
         }
@@ -623,7 +625,7 @@ export default function CarePlanPage() {
         ...formState
       };
 
-      const response = await fetch("http://localhost:8000/api/care-plans", {
+      const response = await fetch(`${API_URL}/care-plans`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -660,7 +662,7 @@ export default function CarePlanPage() {
         return;
       }
 
-      const response = await fetch(`http://localhost:8000/api/care-plans/${carePlanId}`, {
+      const response = await fetch(`${API_URL}/care-plans/${carePlanId}`, {
         headers: {
           "Authorization": `Bearer ${session.access_token}`
         }
@@ -759,7 +761,7 @@ export default function CarePlanPage() {
         return;
       }
 
-      const response = await fetch(`http://localhost:8000/api/care-plans/${carePlanIdToUse}/generate-ai`, {
+      const response = await fetch(`${API_URL}/care-plans/${carePlanIdToUse}/generate-ai`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${session.access_token}`
@@ -793,7 +795,7 @@ export default function CarePlanPage() {
         return;
       }
 
-      const response = await fetch(`http://localhost:8000/api/care-plans/${carePlanId}`, {
+      const response = await fetch(`${API_URL}/care-plans/${carePlanId}`, {
         method: "DELETE",
         headers: {
           "Authorization": `Bearer ${session.access_token}`

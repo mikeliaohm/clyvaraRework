@@ -6,6 +6,9 @@ import { buildDomManifest, summarizePageContext } from "../utils/pageContext.js"
 import { supabase } from "../utils/supabaseClient.js";
 import brainie from "../assets/brainie.png";
 
+const CHAT_API_URL =
+  (import.meta.env.VITE_API_URL || "/api").replace(/\/api$/, "") || "";
+
 // New design styled components
 const FloatingContainer = styled.div`
   position: fixed;
@@ -221,7 +224,7 @@ export default function Chat() {
         throw new Error("Not authenticated");
       }
 
-      const res = await fetch("http://localhost:8000/chat-rag", {
+      const res = await fetch(`${CHAT_API_URL}/chat-rag`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

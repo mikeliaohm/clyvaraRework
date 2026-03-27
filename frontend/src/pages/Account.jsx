@@ -3,7 +3,7 @@ import styled from "styled-components";
 import { supabase } from "../utils/supabaseClient";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const getAccessToken = async () => {
   const { data: { session } } = await supabase.auth.getSession();
@@ -183,7 +183,7 @@ export default function Account() {
       const token = await getAccessToken();
       if (!token) return;
 
-      const response = await fetch(`${API_URL}/api/profile/me`, {
+      const response = await fetch(`${API_URL}/profile/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -232,7 +232,7 @@ export default function Account() {
       throw new Error('No access token available');
     }
 
-    const response = await fetch(`${API_URL}/api/profile`, {
+    const response = await fetch(`${API_URL}/profile`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
