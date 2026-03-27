@@ -157,6 +157,47 @@ def delete_system_material(
     return {"success": True, "message": "System material deleted"}
 
 
+# ── Reprocess system material ────────────────────────────────
+
+@router.post("/system-materials/{material_id}/reprocess")
+def reprocess_system_material(
+    material_id: int,
+    x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Re-run the RAG pipeline for a system material (clears old data first)."""
+    import threading
+    _enforce_admin_access(db, current_user, x_admin_key)
+
+    material = db.query(Material).filter(
+        Material.id == material_id,
+        Material.user_id == SYSTEM_USER_ID,
+    ).first()
+    if not material:
+        raise HTTPException(status_code=404, detail="System material not found")
+
+    # Clean old RAG data
+    rag_doc = db.query(RagDocument).filter(RagDocument.material_id == material_id).first()
+    if rag_doc:
+        from models.rag import IngestionRun
+        db.query(RagChunk).filter(RagChunk.document_id == rag_doc.id).delete()
+        db.query(RagNode).filter(RagNode.document_id == rag_doc.id).delete()
+        db.query(IngestionRun).filter(IngestionRun.document_id == rag_doc.id).delete()
+        db.delete(rag_doc)
+
+    material.status = "processing"
+    material.processing_progress = 0
+    material.chunk_count = 0
+    db.commit()
+
+    # Run pipeline in background
+    from routers.materials import _run_rag_pipeline
+    threading.Thread(target=_run_rag_pipeline, args=(material.id,), daemon=True).start()
+
+    return {"success": True, "message": f"Reprocessing '{material.title}' in background."}
+
+
 # ── System material detail & download ────────────────────────
 
 @router.get("/system-materials/{material_id}/detail")

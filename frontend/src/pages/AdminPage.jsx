@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Eye,
   X,
+  RotateCcw,
 } from "lucide-react";
 import { supabase } from "../utils/supabaseClient";
 
@@ -569,6 +570,22 @@ export default function AdminPage() {
     } catch (err) { console.error("Error deleting material:", err); }
   };
 
+  const handleReprocess = async (materialId, title) => {
+    if (!confirm(`Reprocess "${title}"? This will clear existing RAG data and re-run the pipeline.`)) return;
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(`${API_URL}/admin/system-materials/${materialId}/reprocess`, {
+        method: "POST", headers,
+      });
+      if (resp.ok) {
+        setSystemMaterials(prev => prev.map(m =>
+          m.id === materialId ? { ...m, status: "processing", chunk_count: 0 } : m
+        ));
+        setTimeout(() => loadSystemMaterials(), 5000);
+      }
+    } catch (err) { console.error("Error reprocessing:", err); }
+  };
+
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
@@ -828,6 +845,11 @@ export default function AdminPage() {
                             </IconButton>
                           </>
                         )}
+                        {(m.status === "processed" || m.status === "uploaded" || m.status === "failed") && (
+                          <IconButton onClick={() => handleReprocess(m.id, m.title)}>
+                            <RotateCcw size={14} /> Reprocess
+                          </IconButton>
+                        )}
                         <DangerButton onClick={() => handleDeleteSystemMaterial(m.id, m.title)}>
                           <Trash2 size={14} /> Delete
                         </DangerButton>
@@ -840,9 +862,9 @@ export default function AdminPage() {
           </Card>
         )}
 
-        {systemMaterials.some(m => m.status === "processing") && (
+        {systemMaterials.length > 0 && (
           <SecondaryButton onClick={loadSystemMaterials} style={{ marginTop: 8 }}>
-            <Loader2 size={14} /> Refresh status
+            <RotateCcw size={14} /> Refresh
           </SecondaryButton>
         )}
       </Section>
