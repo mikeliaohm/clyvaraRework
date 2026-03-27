@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -47,29 +47,43 @@ def _store_file(file_content: bytes, s3_key: str, content_type: str) -> Optional
     return str(local_path)
 
 
-def _run_rag_pipeline(material_id: int) -> None:
+def _run_rag_pipeline(material_id: int, detector_type: str = "medical") -> None:
     """Run the new RAG pipeline for a material in a background thread."""
     import time as _time
     from database import get_session_local
     from rag.embedder import get_embedder
     from rag.pipeline import ingest_document
-    from rag.hierarchy_builder import GeneralDetector
+    from rag.hierarchy_builder import get_detector
 
     t0 = _time.perf_counter()
     bg_db = get_session_local()()
     try:
         embedder = get_embedder()
-        detector = GeneralDetector()
+        detector = get_detector(detector_type)
         ingest_document(material_id, bg_db, embedder, detector)
 
+        elapsed = _time.perf_counter() - t0
+
+        # Update material with pipeline results
+        from models.rag import RagDocument, RagChunk
         bg_material = bg_db.query(Material).filter(Material.id == material_id).first()
         if bg_material:
+            rag_doc = bg_db.query(RagDocument).filter(RagDocument.material_id == material_id).first()
+            if rag_doc:
+                from sqlalchemy import func as sa_func
+                stats = bg_db.query(
+                    sa_func.count(RagChunk.id),
+                    sa_func.coalesce(sa_func.sum(RagChunk.token_count), 0),
+                ).filter(RagChunk.document_id == str(rag_doc.id)).first()
+                bg_material.chunk_count = stats[0] if stats else 0
+                bg_material.total_tokens = stats[1] if stats else 0
+
             bg_material.status = "processed"
             bg_material.processing_progress = 100
+            bg_material.processing_time_seconds = round(elapsed, 1)
             bg_material.processed_at = func.now()
             bg_db.commit()
-            elapsed = _time.perf_counter() - t0
-            print(f"✓ RAG pipeline complete for material {material_id} ({elapsed:.1f}s)")
+            print(f"✓ RAG pipeline complete for material {material_id} ({elapsed:.1f}s, {bg_material.chunk_count} chunks)")
     except Exception as e:
         try:
             m = bg_db.query(Material).filter(Material.id == material_id).first()
@@ -148,6 +162,7 @@ async def upload_file(
 @router.post("/api/admin/upload-system-material")
 async def upload_system_material(
     file: UploadFile = File(...),
+    detector: str = Form("medical"),
     x_admin_key: Optional[str] = Header(None, alias="X-Admin-Key"),
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -198,7 +213,8 @@ async def upload_system_material(
     cache_text(material.id, extracted_text)
 
     # Run the new RAG pipeline in background
-    threading.Thread(target=_run_rag_pipeline, args=(material.id,), daemon=True).start()
+    det = detector if detector in ("general", "medical") else "medical"
+    threading.Thread(target=_run_rag_pipeline, args=(material.id, det), daemon=True).start()
 
     return {
         "success": True,
